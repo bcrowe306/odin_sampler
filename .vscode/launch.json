@@ -1,0 +1,47 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run Odin Program",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/${config:project_file_name}",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "build-odin"
+        },
+        {
+            "name": "Debug Odin Program",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/${config:project_file_name}_debug",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "build-debug",
+            "stopOnEntry": false,
+            "internalConsoleOptions": "openOnSessionStart"
+        },
+        {
+            "name": "Profile Odin Program",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/${config:project_file_name}_profile",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "build-profile",
+            "stopOnEntry": false,
+            "internalConsoleOptions": "openOnSessionStart"
+        },
+        {
+            "name": "Current File",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/${fileBasenameNoExtension}",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "debug-current",
+            "stopOnEntry": false,
+            "internalConsoleOptions": "openOnSessionStart"
+        }
+    ]
+}

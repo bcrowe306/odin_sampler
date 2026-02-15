@@ -1,0 +1,68 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        // Create build directory if it doesn't exist
+        {
+            "label": "create-build-dir",
+            "group": "build",
+            "type": "shell",
+            "command": "mkdir",
+            "args": ["-p", "build"],
+            "problemMatcher": [],
+        },
+        {
+            "label": "build-odin",
+            "type": "shell",
+            "dependsOn": "create-build-dir",
+            "command": "odin",
+            "args": ["build", "./src/.", "-out:build/${config:project_file_name}"],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "run-odin",
+            "type": "shell",
+            "command": "odin",
+            "args": ["run", "./src/.", "-out:build/${config:project_file_name}"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "build-debug",
+            "dependsOn": "create-build-dir",
+            "type": "shell",
+            "command": "odin",
+            "args": [
+                "build",
+                "./src/.",
+                "-out:build/${config:project_file_name}_debug",
+                "-debug"
+            ],
+            "group": {
+                "kind": "build",
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+    ]
+}
