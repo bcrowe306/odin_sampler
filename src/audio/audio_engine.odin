@@ -20,6 +20,8 @@ AudioEngine :: struct {
     engine: ma.engine,
     engine_config: ma.engine_config,
 
+    playhead: ^Playhead,
+
     // Methods
     initialize: proc(engine: ^AudioEngine) -> bool,
     uninitialize: proc(engine: ^AudioEngine),
@@ -37,8 +39,8 @@ createAudioEngine :: proc(sample_rate: u32 = 48000, channels: u32 = 2, frames_pe
     audio_engine.format = format
     audio_engine.audioCallback = audioEngineAudioCallback
 
-    audio_engine.device_config = ma.device_config_init(ma.device_type.playback)
     audio_engine.device_config.sampleRate = sample_rate
+    audio_engine.device_config.deviceType = ma.device_type.duplex
     audio_engine.device_config.playback.channels = channels
     audio_engine.device_config.playback.format = format
     audio_engine.device_config.periodSizeInFrames = frames_per_buffer
@@ -50,12 +52,14 @@ createAudioEngine :: proc(sample_rate: u32 = 48000, channels: u32 = 2, frames_pe
     audio_engine.resource_manager_config.decodedChannels = channels
     audio_engine.resource_manager_config.decodedSampleRate = sample_rate
 
-    audio_engine.engine_config = ma.engine_config_init()
     audio_engine.engine_config.sampleRate = sample_rate
+    audio_engine.engine_config.periodSizeInFrames = frames_per_buffer
     audio_engine.engine_config.channels = channels
     audio_engine.engine_config.pDevice = &audio_engine.device
     audio_engine.engine_config.noAutoStart = true
     audio_engine.engine_config.pResourceManager = &audio_engine.resource_manager
+
+    audio_engine.playhead = createPlayhead(f64(sample_rate))
 
     // Methods
     audio_engine.initialize = initializeAudioEngine
@@ -71,7 +75,11 @@ createAudioEngine :: proc(sample_rate: u32 = 48000, channels: u32 = 2, frames_pe
 audioEngineAudioCallback :: proc "c" (device: ^ma.device, output: rawptr, input: rawptr, frameCount: u32) {
     context = runtime.default_context()
     audio_engine := cast(^AudioEngine)device.pUserData
+    if audio_engine.playhead != nil {
+        audio_engine.playhead->process(frameCount)
+    }
     ma.engine_read_pcm_frames(&audio_engine.engine, output, u64(frameCount), nil)
+
 }
 
 initializeAudioEngine :: proc(audio_engine: ^AudioEngine) -> bool {
@@ -86,12 +94,12 @@ initializeAudioEngine :: proc(audio_engine: ^AudioEngine) -> bool {
         fmt.printfln("Failed to initialize audio device: %s", res)
         return false
     }
-
-
+    
     if res := ma.engine_init(&audio_engine.engine_config, &audio_engine.engine); res != ma.result.SUCCESS {
         fmt.printfln("Failed to initialize audio engine: %s", res)
         return false
     }
+
     
     return true
 }
@@ -103,6 +111,7 @@ uninitializeAudioEngine :: proc(audio_engine: ^AudioEngine) {
 }
 
 startAudioEngine :: proc(audio_engine: ^AudioEngine) -> bool {
+
     if res := ma.engine_start(&audio_engine.engine); res != ma.result.SUCCESS {
         fmt.printfln("Failed to start audio engine: %s", res)
         return false

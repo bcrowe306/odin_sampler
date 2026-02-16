@@ -9,18 +9,17 @@ import "hardware_devices"
 import "control_surface"
 import "daw"
 import "audio"
+import "app"
 
 
 FPS : i32 = 60
-
-
-
 
 knob1, knob2, knob3, knob4 : ^cairo.KnobWidget
 value : f64 = 0.
 // 90 2C
 mpc: ^hardware_devices.MPC_Studio_Black
 audio_engine: ^audio.AudioEngine
+perc : ma.sound
 
 onMidiInput :: proc(msg: ^midi.ShortMessage) {
     if msg.status == u8(0x90) && msg.data1 == u8(0x2C) && msg.data2 > 0 {
@@ -76,8 +75,19 @@ onMidiInput :: proc(msg: ^midi.ShortMessage) {
         ma.sound_seek_to_pcm_frame(&perc, 0)
         ma.sound_start(&perc)
     }
+    // Play
+    if msg.status == u8(0x90) && msg.data1 == 0x52 && msg.data2 > 0 {
+        audio_engine.playhead->setPlayheadState(audio.PlayheadState.Playing)
+    }
+    // Stop
+    if msg.status == u8(0x90) && msg.data1 == 0x51 && msg.data2 > 0 {
+        audio_engine.playhead->setPlayheadState(audio.PlayheadState.Stopped)
+    }
+
+
 }
-perc : ma.sound
+
+
 
 main :: proc() {
     daw := daw.DAW{}
@@ -132,9 +142,22 @@ main :: proc() {
         fmt.printfln("Failed to load sound: %s", res)
         return
     }
-
+    
     audio_engine->start()
-
+    audio_engine.playhead->setTempo(120)
+    // audio_engine.playhead->setPlayheadState(audio.PlayheadState.Playing)
+    
+    app.signalConnect(audio_engine.playhead.tick_signal, proc(value: audio.TickEvent){
+        if value.playhead_state != audio.PlayheadState.Playing {
+            return // Only emit tick events when playing
+        }
+        if value.tick_type == audio.TickType.Beat {
+            fmt.println("Beat tick")
+        }
+        else if value.tick_type == audio.TickType.Bar {
+            fmt.println("Bar tick")
+        }
+    })
    
 
 
@@ -144,6 +167,8 @@ main :: proc() {
     mpc->device->subscribe(onMidiInput)
     ma.sound_start(&perc)
     defer mpc->deInitialize()
+
+    
     mpc.display->run()
 
     audio_engine->stop()
