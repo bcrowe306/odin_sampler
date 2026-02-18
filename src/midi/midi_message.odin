@@ -15,6 +15,7 @@ ShortMessage :: struct {
     status: u8,
     data1: u8,
     data2: u8,
+    device: string,
     isNoteOn: proc(msg : ^ShortMessage) -> bool,
     isNoteOff: proc(msg : ^ShortMessage) -> bool,
     isControlChange: proc(msg : ^ShortMessage) -> bool,

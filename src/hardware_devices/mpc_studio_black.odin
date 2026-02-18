@@ -6,6 +6,7 @@ import "core:fmt"
 import "core:mem"
 import "../control_surface"
 import "../daw"
+import "../graphics"
 
 DEVICE_NAME: string = "MPC Studio Black MPC Private"
 
@@ -32,7 +33,7 @@ MPC_STUDIO_BLACK_COMMANDS :: enum(u8) {
 MPC_Studio_Black :: struct {
     using control_surface: control_surface.ControlSurface,
     line_bytes: [MPC_LINE_STRIDE]u8,
-    display: ^cairo.Display,
+    display: ^graphics.Display,
 
     // Methods
     sendMPCSysexCommand: proc(mpc: ^MPC_Studio_Black, command: MPC_STUDIO_BLACK_COMMANDS, message: []u8),
@@ -61,12 +62,12 @@ createMPCStudioBlack :: proc(daw: ^daw.DAW) -> ^MPC_Studio_Black {
     mpc.sendMPCSysexCommand = sendMPCSysexCommand
     mpc.sendLine = sendLine
     mpc.display = createMPCStudioDisplay()
-    mpc.display.widget_render_user_data = mpc
+    mpc.display.element_render_user_data = mpc
     mpc.display.surface_render_user_data = mpc
     mpc.isPixelOn = isPixelOn
 
-    // Set the display's render function to our custom renderWidget function, which will handle rendering the display content to the MPC
-    mpc.display.widget_render = renderWidget
+    // Set the display's render function to our custom renderElement function, which will handle rendering the display content to the MPC
+    mpc.display.element_render = renderElement
     return mpc
 }
 
@@ -103,28 +104,37 @@ sendLine :: proc(mpc: ^MPC_Studio_Black, x_pos, y_pos: i32, lineData: []u8) {
     mpc->sendMPCSysexCommand(MPC_STUDIO_BLACK_COMMANDS.UPDATE_DISPLAY, payload)
 }
 
-renderWidget :: proc(widget_ptr: rawptr) {
-    widget := cast(^cairo.Widget)widget_ptr
-    mpc := cast(^MPC_Studio_Black)widget.render_user_data
-    surface := widget.main_surface
-    xPos := i32(widget.bounds.x)
-    yPos := i32(widget.bounds.y)
-    width := i32(widget.bounds.width)
-    height := i32(widget.bounds.height)
-    // This function can be used if you want to render the entire display at once instead of line by line
-    // It would require buffering the entire display content and sending it in chunks that fit the MPC's requirements
+renderElement :: proc(element_ptr: rawptr, surface: ^cairo.surface_t, render_user_data: rawptr) {
+    element := cast(^graphics.Element)element_ptr
+    if !element.changed {
+        return
+    }
+    mpc := cast(^MPC_Studio_Black)render_user_data
+    xPos := i32(element.bounds.x) - 1
+    yPos := i32(element.bounds.y) - 1
+    width := i32(element.bounds.width)
+    height := i32(element.bounds.height)
+    xPos = clamp(xPos, 0, MPC_SCREEN_WIDTH - 1)
+    yPos = clamp(yPos, 0, MPC_SCREEN_HEIGHT - 1)
+
+    fmt.printf("Bounds: x=%d, y=%d, width=%d, height=%d\n", xPos, yPos, width, height)
+
+
     format := cairo.image_surface_get_format(surface)
     bytes_per_pixel := cairo.format_stride_for_width(format, 1)
     stride := cairo.image_surface_get_stride(surface)
     data := cairo.image_surface_get_data(surface)
+    y_end := yPos + height
+    x_end := xPos + width
 
-    for y :i32 = 0; y < height; y += 1 {
+    for y :i32 = 0; y + yPos <= y_end; y += 1 {
         line_byte_counter := 0
-        for x :i32 = 0; x < width; x += 1 {
+        final_x_val: i32 = 0
+        for x :i32 = 0; x + xPos <= x_end + 1; x += 1 {
             
-            offset := (y + yPos) * stride + ((x + xPos) * bytes_per_pixel)
+            offset := (y + yPos ) * stride + ((x + xPos) * bytes_per_pixel)
            
-            if mpc->isPixelOn(data[offset + 3], data[offset + 2], data[offset + 1], data[offset + 0], 250) {
+            if mpc->isPixelOn(data[offset + 3], data[offset + 2], data[offset + 1], data[offset + 0], 128) {
                 mpc.line_bytes[x / MPC_BIT_STRIDE] |= MPC_SCREEN_BYTE_MAP[x % MPC_BIT_STRIDE]
             } else {
                 mpc.line_bytes[x / MPC_BIT_STRIDE] |= 0x00
@@ -132,12 +142,22 @@ renderWidget :: proc(widget_ptr: rawptr) {
             if x % MPC_BIT_STRIDE == 0 && x != 0 {
                 line_byte_counter += 1
             }
-
+            final_x_val = x
+            
+        }
+        // Handle case where line width is not perfectly divisible by MPC_BIT_STRIDE
+        if final_x_val % MPC_BIT_STRIDE > 0 {
+            line_byte_counter += 1
         }
         mpc->sendLine(xPos, y + yPos, mpc.line_bytes[:line_byte_counter])
+        // for i in 0..<line_byte_counter {
+        //     fmt.printf("%02X ", mpc.line_bytes[i])
+        // }
+        // fmt.print("\n")
         mem.set(&mpc.line_bytes, 0, int(MPC_LINE_STRIDE)) // Clear line bytes for next line
         
     }
+    element.changed = false
 }
 
 
@@ -150,6 +170,10 @@ initializeMPC :: proc(control_surface_ptr: rawptr) {
     // Any initialization code specific to MPC Studio Black can go here
     mpc_studio_black := cast(^MPC_Studio_Black)control_surface_ptr
     mpc_studio_black->setMode(MPC_STUDIO_BLACK_MODE.PRIVATE)
+
+
+    // This is where the display pages routes, and elements are setup!
+    createMPCStudioBlackContent(mpc_studio_black.display, mpc_studio_black.daw)
     mpc_studio_black.display->initialize(mpc_studio_black.daw)
     mpc_studio_black.device->startInput()
 

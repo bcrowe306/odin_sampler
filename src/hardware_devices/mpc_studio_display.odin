@@ -1,12 +1,18 @@
 package hardware_devices
 
+
 import "core:thread"
 import "../cairo"
 import sdl "vendor:sdl3"
 import "core:fmt"
+import clay "../../lib/clay-odin"
+import "../graphics"
+import "../daw"
+
+
 
 MPCStudioDisplay :: struct {
-    using display: cairo.Display,
+    using display: graphics.Display,
     sdl_window: ^sdl.Window,
     sdl_renderer: ^sdl.Renderer,
     sdl_texture: ^sdl.Texture,
@@ -16,34 +22,49 @@ MPCStudioDisplay :: struct {
     window_title: string,
     sRect : cairo.rectangle_t,
     dRect : sdl.FRect,
-    event : sdl.Event,
     display_thread: ^thread.Thread,
 
 }
 
+
 createMPCStudioDisplay :: proc() -> ^MPCStudioDisplay {
     display := new(MPCStudioDisplay)
-    cairo.configureDisplay(display, cairo.format_t.ARGB32, MPC_SCREEN_WIDTH, MPC_SCREEN_HEIGHT, cairo.BLACK)
+    graphics.configureDisplay(display, cairo.format_t.ARGB32, MPC_SCREEN_WIDTH, MPC_SCREEN_HEIGHT, cairo.BLACK)
     display.max_frames_per_second = 60 // Default to 60 FPS, can be overridden by user
     display.window_title = "MPC Studio Black"
     display.onInitialize = onInitializeMPCDisplay
     display.onDeInitialize = onDeInitializeMPCDisplay
-    display.update = mpcStudioUpdate
-    display.render = mpcStudioRender
+    display.onUpdate = mpcStudioUpdate
+    display.onRender = mpcStudioRender
     display.sdl_scale = 1.5
     // display.run = mpcStudioDisplayRun
     return display
 }
 
-onInitializeMPCDisplay :: proc(display_ptr: rawptr) {
+onInitializeMPCDisplay :: proc(display_ptr: rawptr, daw: ^daw.DAW) {
     display := cast(^MPCStudioDisplay)display_ptr
 
     fmt.println("Initializing MPC Studio Display...")
+
+    // Clay Layout initialization
+    error_handler :: proc "c" (errorData: clay.ErrorData) {
+        // Do something with the error data.
+    }
+
+    min_memory_size := clay.MinMemorySize()
+    memory := make([^]u8, min_memory_size)
+    arena: clay.Arena = clay.CreateArenaWithCapacityAndMemory(uint(min_memory_size), memory)
+    clay.Initialize(arena, {f32(display.size.x), f32(display.size.y)}, { handler = error_handler })
+
+
+
+    // SDL Initialization
     init_results := sdl.Init({.VIDEO})
     if !init_results {
         fmt.printf("Failed to initialize SDL: %s\n", sdl.GetError())
         return
     }
+    
     display.sdl_window = new(sdl.Window)
     display.sdl_renderer = new(sdl.Renderer)
     success := sdl.CreateWindowAndRenderer(fmt.ctprint(display.window_title), i32(f32(display.size.x) * display.sdl_scale), i32(f32(display.size.y) * display.sdl_scale), {.OPENGL}, &display.sdl_window, &display.sdl_renderer)
@@ -51,10 +72,10 @@ onInitializeMPCDisplay :: proc(display_ptr: rawptr) {
         fmt.printf("Failed to create SDL window and renderer: %s\n", sdl.GetError())
         return
     }
-    
+
+    // Create rects to scale up for demonstration purposes - ideally the display would be native resolution, but this allows us to scale up for better visibility during development
     display.sdl_surface = sdl.CreateSurfaceFrom(display.size.x, display.size.y, sdl.PixelFormat.RGB24, cairo.image_surface_get_data(display.surface),  cairo.image_surface_get_stride(display.surface))
     display.sdl_texture = sdl.CreateTextureFromSurface(display.sdl_renderer, display.sdl_surface )
-
     display.sRect = cairo.rectangle_t{0, 0, f64(display.size.x), f64(display.size.y)}
     display.dRect = sdl.FRect{0, 0, f32(display.size.x) * display.sdl_scale, f32(display.size.y) * display.sdl_scale}
     
@@ -79,6 +100,7 @@ mpcStudioUpdate :: proc(display_ptr: rawptr) {
     display := cast(^MPCStudioDisplay)display_ptr
     eventcounter := 0
     for sdl.PollEvent(&display.event) {
+        append(&display.events, display.event)
         if display.event.type == sdl.EventType.QUIT {
             display.running = false
             return

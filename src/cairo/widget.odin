@@ -83,7 +83,6 @@ configureNewWidget :: proc(widget: ^Widget, bounds: rectangle_t, background_colo
 
 
 widgetUpdate :: proc(widget_ptr: rawptr, events: ^sdl.Event = nil) {
-     widget := cast(^Widget)widget_ptr
      // Base widget update function, can be overridden by specific widget types.
      // For example, you could add logic here to check if the widget's state has changed and set widget.changed = true if it has.
     

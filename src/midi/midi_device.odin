@@ -10,6 +10,7 @@ MidiDevice :: struct {
     input_id: portmidi.DeviceID,
     output_id: portmidi.DeviceID,
     name: string,
+    enabled: bool,
     iStream: portmidi.Stream,
     oStream: portmidi.Stream,
     sendShortMessage: proc(device: ^MidiDevice, msg: ShortMessage),
@@ -40,6 +41,7 @@ buildMidiDeviceStruct :: proc() -> ^MidiDevice {
     md.subscribe = midiDeviceSubscribe
     md.unsubscribe = midiDeviceUnsubscribe
     md.debug = false
+    md.enabled = true
     return md
 }
 

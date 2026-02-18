@@ -1,8 +1,10 @@
-package cairo
+package graphics
 
 
 import "core:fmt"
 import "core:container/queue"
+
+// TODO: Add support to pass data between pages when switching, pushing, or popping. This will allow for more dynamic pages that can react to the context in which they were opened. For example, if we push a plugin page from a sample slot, we can pass a reference to that sample slot so that the plugin page can directly manipulate the sample slot's parameters.
 
 RouterStackCommand :: enum {
     None,
@@ -10,6 +12,7 @@ RouterStackCommand :: enum {
     PopPage,
     SwitchPage,
 }
+
 
 PageSwitchCommand :: struct {
     name: string,
@@ -25,13 +28,13 @@ resetPageSwitchCommnand :: proc(router: ^Router) {
 }
 
 Router :: struct {
-    pages: map[string]^PageWidget,
+    pages: map[string]^PageElement,
     stack: queue.Queue(string),
     next_page: PageSwitchCommand,
     
     // Methods
-    addPage: proc(router: ^Router, page: ^PageWidget),
-    getCurrentPage: proc(router: ^Router) -> ^PageWidget,
+    addPage: proc(router: ^Router, page: ^PageElement),
+    getCurrentPage: proc(router: ^Router) -> ^PageElement,
     processPageSwitch: proc(router: ^Router) -> bool,
     push : proc(router: ^Router, page_name: string, data: any = nil),
     pop : proc(router: ^Router, data: any = nil),
@@ -40,7 +43,7 @@ Router :: struct {
 
 createRouter :: proc() -> ^Router {
     router := new(Router)
-    router.pages = make(map[string]^PageWidget)
+    router.pages = make(map[string]^PageElement)
     router.stack = queue.Queue(string){}
     router.addPage = addPageToRouter
     router.getCurrentPage = getCurrentRouterPage
@@ -54,7 +57,7 @@ createRouter :: proc() -> ^Router {
     return router
 }
 
-addPageToRouter :: proc(router: ^Router, page: ^PageWidget) {
+addPageToRouter :: proc(router: ^Router, page: ^PageElement) {
     router.pages[page.name] = page
     if queue.len(router.stack) == 0 {
         router.next_page = PageSwitchCommand{name= page.name, command= RouterStackCommand.PushPage}
@@ -73,7 +76,7 @@ swapPage :: proc(router: ^Router, page_name: string, data: any = nil) {
     router.next_page = PageSwitchCommand{name= page_name, command= RouterStackCommand.SwitchPage, data= data}
 }
 
-beforeNav :: proc (router: ^Router, current_page: ^PageWidget, next_page: ^PageWidget) {
+beforeNav :: proc (router: ^Router, current_page: ^PageElement, next_page: ^PageElement) {
 
     if current_page != nil && current_page.beforeLeave != nil {
         current_page.beforeLeave(current_page)
@@ -84,7 +87,7 @@ beforeNav :: proc (router: ^Router, current_page: ^PageWidget, next_page: ^PageW
     
 }
 
-afterNav :: proc (router: ^Router, current_page: ^PageWidget, next_page: ^PageWidget, data: any) {
+afterNav :: proc (router: ^Router, current_page: ^PageElement, next_page: ^PageElement, data: any) {
     if current_page != nil && current_page.afterLeave != nil {
         current_page.afterLeave(current_page)
     }
@@ -168,7 +171,7 @@ processRouterPageSwitch :: proc(router: ^Router) -> bool{
     return false  
 }
 
-getCurrentRouterPage :: proc(router: ^Router) -> ^PageWidget {
+getCurrentRouterPage :: proc(router: ^Router) -> ^PageElement {
     if queue.len(router.stack) == 0 {
         return nil
     }

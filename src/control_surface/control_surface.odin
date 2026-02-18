@@ -14,7 +14,7 @@ ControlSurface :: struct {
     active: bool,
     enabled: bool,
     components: [dynamic]rawptr,
-    handleInput: proc(control_surface_ptr: rawptr, msg: ^midi.ShortMessage),
+    handleInput: proc(control_surface_ptr: rawptr, msg: ^midi.ShortMessage) -> bool,
     initialize: proc(control_surface_ptr: rawptr),
     deInitialize: proc(control_surface_ptr: rawptr),
     activate: proc(control_surface_ptr: rawptr),
@@ -81,23 +81,19 @@ control_surface_deactivate :: proc(control_surface_ptr: rawptr) {
 }
 
 
-controlSurfaceHandleInput :: proc(control_surface_ptr: rawptr, msg: ^midi.ShortMessage)  {
+controlSurfaceHandleInput :: proc(control_surface_ptr: rawptr, msg: ^midi.ShortMessage) -> bool {
     control_surface := cast(^ControlSurface)control_surface_ptr
-    // layer_len := len(control_surface.layers)
-    // for index := layer_len - 1; index >= 0; index -= 1 {
-    //     layer := cast(^Layer)control_surface.layers[index]
-    //     if layer.handleInput(layer, msg) {
-    //         break
-    //     }
-    // }
+    handled := false
     for component_ptr in control_surface.components {
         component := cast(^Component)component_ptr
         if component.handleInput != nil && component.enabled && component.active {
             if component.handleInput(component, msg) {
+                handled = true
                 break
             }
         }
     }
+    return handled
 }
 
 initializeControlSurface :: proc(control_surface_ptr: rawptr) {

@@ -15,8 +15,8 @@ KnobWidget :: struct {
     thickness: f64,
     centered: bool,
     label: string,
-    valueFormatString: string,
-    setValue: proc(widget: ^KnobWidget, value: f64),
+    value_string: string,
+    setValue: proc(widget: ^KnobWidget, value: f64, value_string: string = ""),
     valueDisplayFunction : proc(value: f64) -> cstring,
     font_size: f64,
    
@@ -39,7 +39,7 @@ createKnobWidget :: proc(bounds: rectangle_t, label: string = "", font_size: f64
     knob_widget.changed = true
     knob_widget.label = label
     knob_widget.font_size = font_size
-    knob_widget.valueFormatString = "ms"
+    knob_widget.value_string = ""
     knob_widget.valueDisplayFunction = nil
 
     return knob_widget
@@ -87,14 +87,36 @@ drawKnobWidget :: proc(widget_ptr: rawptr) {
     if widget.valueDisplayFunction != nil {
         valueDisplay = widget.valueDisplayFunction(widget.value)
     } else {
-        valueDisplay = fmt.ctprint(fmt.ctprintf("%.2f%s", widget.value, widget.valueFormatString))
+        if widget.value_string != "" {
+            valueDisplay = fmt.ctprint(fmt.ctprintf("%s", widget.value_string))
+        } else {
+            valueDisplay = fmt.ctprint(fmt.ctprintf("%.2f", widget.value))
+        }
     }
     extents2: text_extents_t
     text_extents(cr, valueDisplay, &extents2)
     show_text(cr, valueDisplay)
 }
 
-setValue :: proc(widget: ^KnobWidget, value: f64) {
-    widget.value = math.clamp(value, widget.min, widget.max);
-    widget.widget.changed = true;
+setValue :: proc(widget: ^KnobWidget, value: f64, value_string: string = "") {
+    new_value := math.clamp(value, widget.min, widget.max);
+    if new_value != widget.value {
+        widget.value = new_value
+        widget.value_string = value_string
+        widget.changed = true
+    }
+}
+
+setLabel :: proc(widget: ^KnobWidget, label: string) {
+    if label != widget.label {
+        widget.label = label
+        widget.changed = true
+    }
+}
+
+setValueString :: proc(widget: ^KnobWidget, value_string: string) {
+    if value_string != widget.value_string {
+        widget.value_string = value_string
+        widget.changed = true
+    }
 }
