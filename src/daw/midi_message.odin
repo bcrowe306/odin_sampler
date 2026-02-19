@@ -1,4 +1,4 @@
-package midi
+package daw 
 
 import "vendor:portmidi"
 import "core:math"
@@ -118,6 +118,24 @@ MessageFromShort :: proc(status: u8, data1: u8, data2: u8) -> ^ShortMessage {
     msg := new(ShortMessage)
     buildMsgStruct(msg)
     msg.status = status
+    msg.data1 = data1
+    msg.data2 = data2
+    return msg
+}
+
+MessageFromInts :: proc(status: int, data1: int, data2: int) -> ^ShortMessage {
+    msg := new(ShortMessage)
+    buildMsgStruct(msg)
+    msg.status = u8(status)
+    msg.data1 = u8(data1)
+    msg.data2 = u8(data2)
+    return msg
+}
+
+MessageFromIntsChannel :: proc(message_type: u8, channel: u8, data1: u8, data2: u8) -> ^ShortMessage {
+    msg := new(ShortMessage)
+    buildMsgStruct(msg)
+    msg.status = GenerateStatusByte(message_type, channel)
     msg.data1 = data1
     msg.data2 = data2
     return msg

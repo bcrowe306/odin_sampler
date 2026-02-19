@@ -1,4 +1,4 @@
-package audio
+package daw
 
 import "core:math"
 import "core:fmt"

@@ -1,4 +1,4 @@
-package audio 
+package daw
 
 import "core:fmt"
 
@@ -10,10 +10,8 @@ FloatParameter :: struct {
     defult: f32,
     step: f32,
     step_small: f32,
-    encode: proc(param: ^FloatParameter, multiplier: f32, small: bool),
     set: proc(param: ^FloatParameter, new_value: f32),
     get: proc(param: ^FloatParameter) -> f32,
-    getUnit: proc(param: ^FloatParameter) -> f32,
     getValueString: proc(param: ^FloatParameter) -> string,
     valueStringProc: proc(value: f32) -> string,
     changed : proc(param: ^FloatParameter, new_value: f32),
@@ -40,7 +38,8 @@ createFParam :: proc(name: string, default: f32, min: f32, max: f32, step: f32 =
     return new_param
 }
 
-encodeParamF :: proc (param: ^FloatParameter, multiplier: f32, small: bool = false) {
+encodeParamF :: proc (param_ptr: rawptr, multiplier: f32, small: bool = false) {
+    param := cast(^FloatParameter)param_ptr
     unit_value := normalize_f32(param.value, param.min, param.max)
     if param.logarithmic {
         unit_value = logToNormal_f32(param.value, param.min, param.max)
@@ -66,11 +65,13 @@ setFParam :: proc(param: ^FloatParameter, new_value: f32) {
         param.changed(param, clamped_value)
     }
 }
+
 getFParam :: proc(param: ^FloatParameter) -> f32 {
     return param.value
 }
 
-getFParamUnit :: proc(param: ^FloatParameter) -> f32 {
+getFParamUnit :: proc(param: rawptr) -> f32 {
+    param := cast(^FloatParameter)param
     if param.logarithmic {
         return logToNormal_f32(param.value, param.min, param.max)
     }
@@ -108,7 +109,8 @@ createDecibelParam :: proc(name: string, default: f32 = 0.0, min: f32 = -60.0, m
     new_param.getUnit = getFParamUnit
     new_param.getValueString = getFParamValueString
     new_param.valueStringProc = formatDecibels
-    new_param.encode = proc(param: ^FloatParameter, multiplier: f32, small: bool = false) {
+    new_param.encode = proc(param_ptr: rawptr, multiplier: f32, small: bool = false) {
+        param := cast(^FloatParameter)param_ptr
         unit_value := dBToLinear_f32(param.value)
         fmt.printfln("Unit value before jog: %.4f", unit_value)
         step := param.step

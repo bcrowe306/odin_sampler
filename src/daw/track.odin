@@ -1,4 +1,4 @@
-package audio
+package daw
 
 import "core:encoding/uuid"
 import ma "vendor:miniaudio"
@@ -19,6 +19,7 @@ Track :: struct {
     mute: ^BoolParameter,
     solo: ^BoolParameter,
     parameters: []^Parameter,
+    
 }
 
 createTrack :: proc(name: string, type: TrackType = TrackType.Instrument) -> ^Track {

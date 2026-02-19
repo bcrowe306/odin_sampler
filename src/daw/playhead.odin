@@ -1,4 +1,4 @@
-package audio
+package daw
 
 import "core:time"
 import ma "vendor:miniaudio"
@@ -114,15 +114,21 @@ Playhead :: struct {
     ticks_per_bar: f64,
     tick_signal: ^app.Signal(TickEvent),
     state_signal: ^app.Signal(PlayheadStateEvent),
+    looping: bool,
+    loop_start_tick: u32,
+    loop_end_tick: u32,
     process: proc(playhead: ^Playhead, frame_count: u32),
 
     // Methods
     setPlayheadState: proc(playhead: ^Playhead, new_state: PlayheadState),
     setTempo: proc(playhead: ^Playhead, tempo: f64),
-
+    setLooping: proc(playhead: ^Playhead, looping: bool),
+    setLoopStart: proc(playhead: ^Playhead, tick: u32),
+    setLoopEnd: proc(playhead: ^Playhead, tick: u32),
+    setLoopPoints: proc(playhead: ^Playhead, start_tick: u32, end_tick: u32),
 }
 
-createPlayhead :: proc(sample_rate: f64, tempo: f64 = 120.0) -> ^Playhead {
+createPlayhead :: proc(sample_rate: f64, tempo: f64 = 100) -> ^Playhead {
     playhead := new(Playhead)
     playhead.playhead_state = .Stopped
     playhead.ppqn = PPQN
@@ -141,7 +147,27 @@ createPlayhead :: proc(sample_rate: f64, tempo: f64 = 120.0) -> ^Playhead {
     // Methods
     playhead.setPlayheadState = setPlayheadState
     playhead.setTempo = setTempo
+    playhead.setLooping = setPlayheadLooping
+    playhead.setLoopStart = setPlayheadLoopStart
+    playhead.setLoopEnd = setPlayheadLoopEnd
+    playhead.setLoopPoints = setPlayheadLoopPoints
     return playhead
+}
+
+setPlayheadLooping :: proc(playhead: ^Playhead, looping: bool) {
+    playhead.looping = looping
+}
+
+setPlayheadLoopStart :: proc(playhead: ^Playhead, tick: u32) {
+    playhead.loop_start_tick = tick
+}
+
+setPlayheadLoopEnd :: proc(playhead: ^Playhead, tick: u32) {
+    playhead.loop_end_tick = tick
+}
+setPlayheadLoopPoints :: proc(playhead: ^Playhead, start_tick: u32, end_tick: u32) {
+    playhead.loop_start_tick = start_tick
+    playhead.loop_end_tick = end_tick
 }
 
 calculateSongPosition :: proc(playhead: ^Playhead) {

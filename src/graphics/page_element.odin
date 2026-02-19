@@ -140,6 +140,7 @@ drawPage :: proc(page: rawptr, cr: ^cairo.context_t) {
                         l.setBounds(l, cairo.getRectFromClayCmd(cmd))
                         if l._draw != nil {
                             l._draw(element, cr)
+                            
                         }
                 }
                 
@@ -174,6 +175,7 @@ renderPage :: proc(page_ptr: rawptr, surface: ^cairo.surface_t, render_proc: Ele
                     case ElementType.Knob:
                         e := cast(^KnobElement)element
                         render_proc(element, surface, user_data)
+                        e.changed = false
 
                     case ElementType.Slider:
                         // Draw slider based on value
@@ -181,6 +183,7 @@ renderPage :: proc(page_ptr: rawptr, surface: ^cairo.surface_t, render_proc: Ele
                     case ElementType.Button:
                         e := cast(^ButtonElement)element
                         render_proc(element, surface, user_data)
+                        e.changed = false
 
                     case ElementType.Base:
                         // Draw base element

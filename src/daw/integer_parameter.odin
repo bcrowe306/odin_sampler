@@ -1,5 +1,4 @@
-package audio 
-
+package daw
 import "core:fmt"
 
 IntegerParameter :: struct {
@@ -10,15 +9,14 @@ IntegerParameter :: struct {
     defult: int,
     step: int,
     step_small: int,
-    encode: proc(param: ^IntegerParameter, multiplier: int, small: bool),
     set: proc(param: ^IntegerParameter, new_value: int),
     get: proc(param: ^IntegerParameter) -> int,
-    getUnit: proc(param: ^IntegerParameter) -> f32,
     getValueString: proc(param: ^IntegerParameter) -> string,
     valueStringProc: proc(value: int) -> string,
     changed : proc(param: ^IntegerParameter, new_value: int),
     logarithmic: bool,
 }
+
 
 createIntegerParam :: proc(name: string, default: int, min: int, max: int, step: int = 10, small_step: int = 1, logarithmic: bool = false) -> ^IntegerParameter {
     new_param := new(IntegerParameter)
@@ -40,7 +38,8 @@ createIntegerParam :: proc(name: string, default: int, min: int, max: int, step:
     return new_param
 }
 
-encodeParamInt :: proc (param: ^IntegerParameter, multiplier: int, small: bool = false) {
+encodeParamInt :: proc (param_ptr: rawptr, multiplier: f32, small: bool = false) {
+    param := cast(^IntegerParameter)param_ptr
     unit_value := normalize_f32(f32(param.value), f32(param.min), f32(param.max))
     if param.logarithmic {
         unit_value = logToNormal_f32(f32(param.value), f32(param.min), f32(param.max))
@@ -50,7 +49,7 @@ encodeParamInt :: proc (param: ^IntegerParameter, multiplier: int, small: bool =
     if small {
         step = param.step_small
     }
-    new_unit_value := clamp(unit_value + f32(step * multiplier), 0.0, 1.0)
+    new_unit_value := clamp(unit_value + f32(f32(step) * multiplier), 0.0, 1.0)
     new_value := denormalize_f32(new_unit_value, f32(param.min), f32(param.max))
     if param.logarithmic {
         new_value = normalToLog_f32(new_unit_value, f32(param.min), f32(param.max))
@@ -70,7 +69,8 @@ getIntParam :: proc(param: ^IntegerParameter) -> int {
     return param.value
 }
 
-getIntParamUnit :: proc(param: ^IntegerParameter) -> f32 {
+getIntParamUnit :: proc(param: rawptr) -> f32 {
+    param := cast(^IntegerParameter)param
     if param.logarithmic {
         return logToNormal_f32(f32(param.value), f32(param.min), f32(param.max))
     }

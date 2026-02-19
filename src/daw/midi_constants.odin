@@ -1,4 +1,4 @@
-package midi 
+package daw 
 
 MIDI_STATUS :: enum(u8) {
     NOTE_OFF = 0x80,

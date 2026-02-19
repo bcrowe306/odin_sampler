@@ -1,19 +1,18 @@
-package audio 
+package daw
 
 import "core:c"
 import "core:fmt"
+
 
 OptionsParameter :: struct {
     using param: Parameter,
     value: int,
     defult: int,
     options: []string,
-    encode: proc(param: ^OptionsParameter, multiplier: int, small: bool = false),
     encode_count: int,
     encode_threshold: int,
     set: proc(param: ^OptionsParameter, new_value: int),
     get: proc(param: ^OptionsParameter) -> int,
-    getUnit: proc(param: ^OptionsParameter) -> f32,
     getValueString: proc(param: ^OptionsParameter) -> string,
     valueStringProc: proc(value: int) -> string,
     changed : proc(param: ^OptionsParameter, new_value: int),
@@ -36,7 +35,8 @@ createOptionsParam :: proc(name: string, options: []string, default: int = 0) ->
     return new_param
 }
 
-encodeOptionsParam :: proc (param: ^OptionsParameter, multiplier: int, small: bool = false) {
+encodeOptionsParam :: proc (param_ptr: rawptr, multiplier: f32, small: bool = false) {
+    param := cast(^OptionsParameter)param_ptr
     param.encode_count += 1
     if param.encode_count >= param.encode_threshold {
         param.encode_count = 0
@@ -64,7 +64,8 @@ getOptionsParam :: proc(param: ^OptionsParameter) -> int {
     return param.value
 }
 
-getOptionsParamUnit :: proc(param: ^OptionsParameter) -> f32 {
+getOptionsParamUnit :: proc(param: rawptr) -> f32 {
+    param := cast(^OptionsParameter)param
     options_count := len(param.options)
     if options_count == 0 {
         return 0.0

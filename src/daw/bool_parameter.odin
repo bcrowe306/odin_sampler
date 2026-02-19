@@ -1,4 +1,4 @@
-package audio 
+package daw
 
 import "core:fmt"
 
@@ -6,10 +6,8 @@ BoolParameter :: struct {
     using param: Parameter,
     value: bool,
     defult: bool,
-    encode: proc(param: ^BoolParameter, multiplier: int, small: bool),
     set: proc(param: ^BoolParameter, new_value: bool),
     get: proc(param: ^BoolParameter) -> bool,
-    getUnit: proc(param: ^BoolParameter) -> f32,
     getValueString: proc(param: ^BoolParameter) -> string,
     valueStringProc: proc(value: bool) -> string,
     changed : proc(param: ^BoolParameter, new_value: bool),
@@ -29,8 +27,9 @@ createBoolParam :: proc(name: string, default: bool) -> ^BoolParameter {
     return new_param
 }
 
-encodeParamBool :: proc (param: ^BoolParameter, multiplier: int, small: bool = false) {
-   if multiplier > 0 {
+encodeParamBool :: proc (param_ptr: rawptr, multiplier: f32, small: bool = false) {
+    param := cast(^BoolParameter)param_ptr
+    if multiplier > 0 {
         param.set(param, true)
     } else if multiplier < 0 {
         param.set(param, false)
@@ -47,8 +46,9 @@ getBoolParam :: proc(param: ^BoolParameter) -> bool {
     return param.value
 }
 
-getBoolParamUnit :: proc(param: ^BoolParameter) -> f32 {
-   if param.value {
+getBoolParamUnit :: proc(param: rawptr) -> f32 {
+    param := cast(^BoolParameter)param
+    if param.value {
         return 1.0
     } else {
         return 0.0

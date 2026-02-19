@@ -20,6 +20,7 @@ createSignal :: proc($T: typeid) -> ^Signal(T) {
 
 signalConnect :: proc(signal: ^Signal($T), observer: proc(value: T, user_data: rawptr = nil), user_data: rawptr = nil) {
     // Check if the observer is already connected
+    
     for existing_observer in signal.observers {
         if existing_observer.observer == observer {
             return // Observer is already connected, do nothing

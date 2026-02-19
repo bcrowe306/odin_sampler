@@ -1,7 +1,5 @@
-package control_surface
+package daw 
 
-import "core:fmt"
-import "../midi"
 
 EventType :: enum {
     Pressed,
@@ -27,11 +25,11 @@ EventType :: enum {
 ControlEvent :: struct {
     control_name: string,
     type: EventType,
-    msg: midi.ShortMessage,
+    msg: ShortMessage,
     unit: f64,
 }
 
-createEvent :: proc(type: EventType, control_name: string, msg: midi.ShortMessage) -> ControlEvent {
+createEvent :: proc(type: EventType, control_name: string, msg: ShortMessage) -> ControlEvent {
     unit := f64(msg.data2) / 127.0
     return ControlEvent{control_name, type, msg, unit}
 }

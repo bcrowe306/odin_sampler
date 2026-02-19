@@ -1,15 +1,17 @@
-package control_surface
+package daw 
 
 import "core:encoding/uuid"
-import "../midi"
 import "core:crypto"
 import "../daw"
 
 Component :: struct {
     using control : Control,
-    addControl: proc(component: ^Component, control: rawptr),
+    addControl: proc(component: ^Component, control: rawptr, control_name: string = ""),
+    controls_map: map[string]rawptr,
     removeControl: proc(component: ^Component, control: rawptr),
     controls : [dynamic]rawptr,
+    activate: proc(ptr: rawptr),
+    
 }
 
     
@@ -21,9 +23,10 @@ createComponent :: proc(name: string) -> ^Component {
     component.name = name
     component.enabled = true
     component.active = false
+    component.initialize = initializeComponent
     component.handleInput = defaultComponentInputHandler
-    component.addControl = addControl
-    component.removeControl = removeControl
+    component.addControl = component_addControl
+    component.removeControl = component_removeControl
     component.activate = activateComponent
     component.deactivate = deactivateComponent
     return component
@@ -32,12 +35,13 @@ createComponent :: proc(name: string) -> ^Component {
 
 activateComponent :: proc(ptr: rawptr) {
     component := cast(^Component)ptr
+    comp_control := cast(^Control)ptr
     for control_ptr in component.controls {
         control := cast(^Control)control_ptr
         control.active = true
-        if control.activate != nil {
-            control.activate(control_ptr)
-        }
+    }
+    if component.onActivate != nil {
+        component.onActivate(ptr)
     }
 }
 
@@ -50,17 +54,20 @@ deactivateComponent :: proc(ptr: rawptr) {
             control.deactivate(control_ptr)
         }
     }
+    if component.onDeInitialize != nil {
+        component.onDeInitialize(ptr)
+    }
 }
 
-initializeComponent :: proc(ptr: rawptr, control_surface: ^ControlSurface, device: ^midi.MidiDevice, daw: ^daw.DAW) {
+initializeComponent :: proc(ptr: rawptr, control_surface: ^ControlSurface, device_name: string, daw: ^daw.DAW) {
     component := cast(^Component)ptr
     component.control_surface = control_surface
-    component.device = device
+    component.device_name = device_name
     component.daw = daw
     for control_ptr in component.controls {
         control := cast(^Control)control_ptr
         if control.initialize != nil {
-            control.initialize(control_ptr, control_surface, device, daw)
+            control.initialize(control_ptr, control_surface, component.device_name, daw)
         }
     }
     if component.onInitialize != nil {
@@ -81,7 +88,7 @@ deInitializeComponent :: proc(ptr: rawptr) {
     }
 }
 
-defaultComponentInputHandler :: proc(component_ptr: rawptr, msg: ^midi.ShortMessage) -> bool {
+defaultComponentInputHandler :: proc(component_ptr: rawptr, msg: ^ShortMessage) -> bool {
     handled := false
     component := cast(^Component)component_ptr
     for control_ptr in component.controls {
@@ -96,25 +103,32 @@ defaultComponentInputHandler :: proc(component_ptr: rawptr, msg: ^midi.ShortMess
 }
 
 
-addControl :: proc(component: ^Component, new_control_type: $T) {
-    new_ptr := cast(rawptr)new_control_type
+component_addControl :: proc(component: ^Component, control:rawptr, control_name: string = "") {
     // Process additions
     exists := false
-    new := cast(^Control)new_ptr
+    new := cast(^Control)control
     for ptr in component.controls {
-        control := cast(^Control)ptr
-        if new.id == control.id {
+        existing_control := cast(^Control)ptr
+        if new.id == existing_control.id {
             exists = true
             break
         }
     }
     if !exists {
-        append(&component.controls, new_ptr)
+        n := new.name
+        if control_name != "" {
+            n = control_name
+        }
+        append(&component.controls, control)
+
+        if n != "" {
+            component.controls_map[n] = control
+        }
     }
 }
 
-removeControl :: proc(component: ^Component, control_to_remove_type: $T) {
-    control_to_remove := cast(^Control)control_to_remove_type
+component_removeControl :: proc(component: ^Component, control_to_remove: rawptr) {
+    control_to_remove := cast(^Control)control_to_remove
     // Process removals
     for ptr, index in component.controls {
         control := cast(^Control)ptr

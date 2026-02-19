@@ -1,15 +1,10 @@
-package control_surface
+package daw 
 
 import "core:fmt"
-import "core:encoding/uuid"
-import "../midi"
 
 ButtonControl :: struct {
     using control : Control,
     pressed: bool,
-    channel: u8,
-    status: u8,
-    identifier: u8,
     onPress: proc(control: ^ButtonControl),
     onRelease: proc(control: ^ButtonControl),
     onClick: proc(control: ^ButtonControl),
@@ -17,7 +12,7 @@ ButtonControl :: struct {
 }
 
     
-isMatchingMessage :: proc(control: ^ButtonControl, msg: ^midi.ShortMessage) -> bool {
+isMatchingMessage :: proc(control: ^ButtonControl, msg: ^ShortMessage) -> bool {
     return msg->getMessageType() == control.status && msg->getChannel() == control.channel && msg.data1 == control.identifier
 }
 
@@ -34,7 +29,7 @@ defaultOnClick :: proc(control: ^ButtonControl) {
 }
 
 // Handle button Input
-handleButtonInput :: proc(ptr: rawptr, msg: ^midi.ShortMessage) -> bool {
+handleButtonInput :: proc(ptr: rawptr, msg: ^ShortMessage) -> bool {
 
     control := cast(^ButtonControl)ptr
     if isMatchingMessage(control, msg) {
@@ -72,7 +67,7 @@ handleButtonInput :: proc(ptr: rawptr, msg: ^midi.ShortMessage) -> bool {
     return false
 }
 
-createButtonControl :: proc(name: string, channel: u8, status: u8, identifier: u8, midi_device: ^midi.MidiDevice = nil) -> ^ButtonControl {
+createButtonControl :: proc(name: string, channel: u8, status: u8, identifier: u8, midi_device: ^MidiDevice = nil) -> ^ButtonControl {
     button := new(ButtonControl)
     configureControl(button, name)
     button.channel = channel

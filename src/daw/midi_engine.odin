@@ -1,4 +1,4 @@
-package midi
+package daw 
 
 import "core:thread"
 import "vendor:portmidi"
@@ -20,10 +20,9 @@ MidiEngine :: struct {
     devices: map[string]^MidiDevice,
     debug: bool,
     input_threads: map[string]^thread.Thread,
-    control_surfaces_callbacks: [dynamic]proc(msg: ^ShortMessage, userData: ^MidiEngine) -> bool,
+    control_surfaces: [dynamic]rawptr,
+    auto_start_all: bool,
 
-    enabledDevice: proc(deviceName: string) -> bool,
-    disableDevice: proc(deviceName: string) -> bool,
     midiInputCallback: proc(engine: ^MidiEngine, msg: ^ShortMessage),
     startInputThread: proc(engine: ^MidiEngine, device: ^MidiDevice),
     refreshMidiDevices: proc(engine: ^MidiEngine),
@@ -31,11 +30,18 @@ MidiEngine :: struct {
     closeDeviceInput: proc(engine: ^MidiEngine, device: ^MidiDevice),
     openDeviceOutput: proc(device: ^MidiDevice),
     closeDeviceOutput: proc(device: ^MidiDevice),
+    initialize: proc(engine: ^MidiEngine),
+    uninitialize: proc(engine: ^MidiEngine),
+    enableDevice: proc(engine: ^MidiEngine, deviceName: string) -> bool,
+    disableDevice: proc(engine: ^MidiEngine, deviceName: string) -> bool,
+    sendMsg: proc(engine: ^MidiEngine, deviceName: string, msg: ShortMessage),
+    sendSysexMsg: proc(engine: ^MidiEngine, deviceName: string, msg: []u8),
 }
 
 createMidiEngine :: proc() -> ^MidiEngine {
     engine := new(MidiEngine)
     engine.debug = false
+    engine.auto_start_all = true
 
     // Methods
 
@@ -46,17 +52,55 @@ createMidiEngine :: proc() -> ^MidiEngine {
     engine.closeDeviceInput = closeDeviceInput
     engine.openDeviceOutput = openDeviceOutput
     engine.closeDeviceOutput = closeDeviceOutput
+    engine.initialize = initializeMidiEngine
+    engine.enableDevice = enabledDevice
+    engine.disableDevice = disableDevice
+    engine.sendMsg = sendMsg
+    engine.sendSysexMsg = sendSysexMsg
+    engine.uninitialize = unInitializeMidieEngine
     return engine
+}
+
+initializeMidiEngine :: proc(engine: ^MidiEngine) {
+    portmidi.Initialize()
+    engine.refreshMidiDevices(engine)
+    if engine.auto_start_all {
+        startAllDevices(engine)
+    }
+}
+
+unInitializeMidieEngine :: proc(engine: ^MidiEngine) {
+    stopAllDevices(engine)
+    portmidi.Terminate()
 }
 
 midiInputCallback :: proc(engine: ^MidiEngine, msg: ^ShortMessage) {
     if engine.debug {
         fmt.printfln("Device: %s, Message: %s", msg.device, msg->toHexString())
     }
-    for callback in engine.control_surfaces_callbacks {
-        if callback(msg, engine) {
-            break
+    for control_surface_ptr in engine.control_surfaces {
+        control_surface := cast(^ControlSurface)control_surface_ptr
+        if control_surface.handleInput != nil && control_surface.active {
+            if control_surface.handleInput(control_surface, msg) {
+                break
+            }
         }
+    }
+}
+
+startAllDevices :: proc(engine: ^MidiEngine) {
+    for _, device in engine.devices {
+        if device.enabled {
+            engine.openDeviceInput(device, engine)
+            engine.openDeviceOutput(device)
+        }
+    }
+}
+
+stopAllDevices :: proc(engine: ^MidiEngine) {
+    for _, device in engine.devices {
+        engine.closeDeviceInput(engine, device)
+        engine.closeDeviceOutput(device)
     }
 }
 
@@ -69,7 +113,7 @@ refreshMidiDevices :: proc(engine: ^MidiEngine) {
         if !exists {
             device = buildMidiDeviceStruct()
             engine.devices[device_name] = device
-            device.enabled = false
+            device.enabled = true
         }
         device.name = device_name
         if cast(bool)info.input {
@@ -145,9 +189,6 @@ engineListenDevice :: proc(thread: ^thread.Thread) {
     engine := data.engine
     event: []portmidi.Event = make([]portmidi.Event, 1024)
     for data.running {
-        if !device.listening {
-            break
-        }
         err :=portmidi.Poll(device.iStream)
         if err == portmidi.Error.GotData{
             count := portmidi.Read(device.iStream, &event[0], 1024)
@@ -155,15 +196,55 @@ engineListenDevice :: proc(thread: ^thread.Thread) {
                 for i in 0..<count {
                     msg := MessageFromPortMidi(event[i].message)
                     msg.device = device.name
+                    if !device.enabled {
+                        continue
+                    }
                     if device.debug {
                         fmt.println(msg->toHexString())
                     }
-                    for callback in device.subscribers {
-                        engine->midiInputCallback(msg)
-                    }
+                    engine->midiInputCallback(msg)
                 }
             }
         }
         time.sleep(2 * time.Millisecond)
+    }
+}
+
+enabledDevice :: proc(engine: ^MidiEngine, deviceName: string) -> bool {
+    device, exists := engine.devices[deviceName]
+    if exists {
+        device.enabled = true
+        return true
+    }
+    return false
+}
+
+disableDevice :: proc(engine: ^MidiEngine, deviceName: string) -> bool {
+    device, exists := engine.devices[deviceName]
+    if exists {
+        device.enabled = false
+        return true
+    }
+    return false
+}
+
+sendMsg :: proc (engine: ^MidiEngine, deviceName: string, msg: ShortMessage) {
+    device, exists := engine.devices[deviceName]
+    if exists && device.oStream != nil && device.enabled {
+        message := portmidi.MessageCompose(i32(msg.status), i32(msg.data1), i32(msg.data2))
+        portmidi.WriteShort(device.oStream,0, message)
+    }
+}
+
+sendSysexMsg :: proc(engine: ^MidiEngine, deviceName: string, msg: []u8) {
+    if device, exists := engine.devices[deviceName]; exists && device.oStream != nil && device.enabled {
+        data := make([]u8, len(msg) + 2)
+        data[0] = SYSEX_START// Start of SysEx
+        copy(data[1:], msg) // Copy the original message into the new array
+        data[len(data) - 1] = SYSEX_END // End of SysEx
+        err := portmidi.WriteSysEx(device.oStream, 0, convertToCString(data))
+        if err != nil {
+            fmt.printf("Error sending MIDI SysEx message: %s\n", err)
+        }
     }
 }

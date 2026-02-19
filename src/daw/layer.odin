@@ -1,7 +1,6 @@
-package control_surface
+package daw
 
 import "core:encoding/uuid"
-import "../midi"
 import "core:crypto"
 
 Layer :: struct {
@@ -12,7 +11,7 @@ Layer :: struct {
     removalQueue: [dynamic]uuid.Identifier,
     addComponent: proc(layer: ^Layer, component: rawptr),
     removeComponent: proc(layer: ^Layer, component: rawptr),
-    handleInput: proc(layer_ptr: ^Layer, msg: ^midi.ShortMessage) -> bool,
+    handleInput: proc(layer_ptr: ^Layer, msg: ^ShortMessage) -> bool,
     processQueues: proc(layer: ^Layer),
 }
 
@@ -29,7 +28,7 @@ createLayer :: proc(name: string) -> ^Layer {
 }
 
 
-defaultLayerInputHandler :: proc(layer: ^Layer, msg: ^midi.ShortMessage) -> bool {
+defaultLayerInputHandler :: proc(layer: ^Layer, msg: ^ShortMessage) -> bool {
     handled := false
     for component_ptr in layer.components {
         component := cast(^Component)component_ptr

@@ -88,7 +88,12 @@ device_page_layout :: proc(page: rawptr) -> clay.ClayArray(clay.RenderCommand) {
             }
         }){
             // Header content
+            selected_track := device_page.daw.tracks.selected_track
+            tempo := device_page.daw.transport->getTempo()
+            device_page.labels["track_name"]->setText(selected_track.name)
+            device_page.labels["tempo"]->setText(fmt.tprintf("%.2f BPM", tempo))
             if UI_AutoId()({
+                
                 layout = {
                     layoutDirection = LayoutDirection.LeftToRight,
                     childAlignment = {x = LayoutAlignmentX.Left, y = LayoutAlignmentY.Top},

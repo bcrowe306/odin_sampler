@@ -1,12 +1,11 @@
 package hardware_devices
 
-import "../midi"
 import "../cairo"
 import "core:fmt"
 import "core:mem"
-import "../control_surface"
-import "../daw"
+import daw_pkg "../daw"
 import "../graphics"
+
 
 DEVICE_NAME: string = "MPC Studio Black MPC Private"
 
@@ -31,7 +30,7 @@ MPC_STUDIO_BLACK_COMMANDS :: enum(u8) {
 
 
 MPC_Studio_Black :: struct {
-    using control_surface: control_surface.ControlSurface,
+    using control_surface: daw_pkg.ControlSurface,
     line_bytes: [MPC_LINE_STRIDE]u8,
     display: ^graphics.Display,
 
@@ -45,18 +44,13 @@ MPC_Studio_Black :: struct {
 }
 
 
-createMPCStudioBlack :: proc(daw: ^daw.DAW) -> ^MPC_Studio_Black {
+createMPCStudioBlack :: proc() -> ^MPC_Studio_Black {
 
-    // TODO: Implement a more robust device detection mechanism that can handle multiple devices and potential naming variations
-    // TODO: Maybe provide device as an argument to createMPCStudioBlack for more flexibility
-    device := midi.GetDeviceByName(DEVICE_NAME)
-    if device == nil {
-        fmt.printf("MPC Studio Black device not found.\n")
-        return nil
-    }
+
     mpc := new(MPC_Studio_Black)
-    control_surface.configureControlSurfaceDefaults(mpc, "MPC Studio Black", device, daw)
-    mpc.initialize = initializeMPC
+    daw_pkg.configureControlSurfaceDefaults(mpc, "MPC Studio Black")
+    mpc.device_name = DEVICE_NAME
+    mpc.onInitialize = initializeMPC
     mpc.deInitialize = deInitializeMPC
     mpc.setMode = setMode
     mpc.sendMPCSysexCommand = sendMPCSysexCommand
@@ -68,6 +62,7 @@ createMPCStudioBlack :: proc(daw: ^daw.DAW) -> ^MPC_Studio_Black {
 
     // Set the display's render function to our custom renderElement function, which will handle rendering the display content to the MPC
     mpc.display.element_render = renderElement
+    createMPCStudioBlackComponents( mpc )
     return mpc
 }
 
@@ -78,7 +73,7 @@ setMode :: proc(mpc: ^MPC_Studio_Black, mode: MPC_STUDIO_BLACK_MODE) {
 
 
 sendMPCSysexCommand :: proc(mpc: ^MPC_Studio_Black, command: MPC_STUDIO_BLACK_COMMANDS, message: []u8) {
-    message_length := midi.toMsbLsbArr(u16(len(message)))
+    message_length := daw_pkg.toMsbLsbArr(u16(len(message)))
     message_type := u8(command)
 
     sysexMessage := make([]u8, len(MPC_SYSEX_HEADER) + 1 + len(message_length) + len(message)) // Header + Message ID
@@ -86,15 +81,15 @@ sendMPCSysexCommand :: proc(mpc: ^MPC_Studio_Black, command: MPC_STUDIO_BLACK_CO
     sysexMessage[len(MPC_SYSEX_HEADER)] = message_type
     copy(sysexMessage[len(MPC_SYSEX_HEADER) + 1:], message_length[:])
     copy(sysexMessage[len(MPC_SYSEX_HEADER) + 1 + len(message_length):], message[:])
-    mpc.device->sendSysex(sysexMessage)
+    mpc->sendSysex(sysexMessage)
 }
 
 
 sendLine :: proc(mpc: ^MPC_Studio_Black, x_pos, y_pos: i32, lineData: []u8) {
     // Construct and send a SysEx message for the line data
-    pixel_count := midi.toMsbLsbArr(u16(len(lineData) * 3)) // Each byte represents 3 pixels
-    x := midi.toMsbLsbArr(u16(x_pos))
-    y := midi.toMsbLsbArr(u16(y_pos))
+    pixel_count := daw_pkg.toMsbLsbArr(u16(len(lineData) * 3)) // Each byte represents 3 pixels
+    x := daw_pkg.toMsbLsbArr(u16(x_pos))
+    y := daw_pkg.toMsbLsbArr(u16(y_pos))
     payload := make([]u8, len(pixel_count) + len(x) + len(y) + len(lineData))
     copy(payload, pixel_count[:])
     copy(payload[len(pixel_count):], x[:])
@@ -117,7 +112,7 @@ renderElement :: proc(element_ptr: rawptr, surface: ^cairo.surface_t, render_use
     xPos = clamp(xPos, 0, MPC_SCREEN_WIDTH - 1)
     yPos = clamp(yPos, 0, MPC_SCREEN_HEIGHT - 1)
 
-    fmt.printf("Bounds: x=%d, y=%d, width=%d, height=%d\n", xPos, yPos, width, height)
+    // fmt.printf("Bounds: x=%d, y=%d, width=%d, height=%d\n", xPos, yPos, width, height)
 
 
     format := cairo.image_surface_get_format(surface)
@@ -166,7 +161,7 @@ isPixelOn :: proc(mpc: ^MPC_Studio_Black, a,r,g,b, threshold: u8,) -> bool {
     return r > threshold || g > threshold || b > threshold
 }
 
-initializeMPC :: proc(control_surface_ptr: rawptr) {
+initializeMPC :: proc(control_surface_ptr: rawptr, daw: ^daw_pkg.DAW, device_name: string) {
     // Any initialization code specific to MPC Studio Black can go here
     mpc_studio_black := cast(^MPC_Studio_Black)control_surface_ptr
     mpc_studio_black->setMode(MPC_STUDIO_BLACK_MODE.PRIVATE)
@@ -175,7 +170,6 @@ initializeMPC :: proc(control_surface_ptr: rawptr) {
     // This is where the display pages routes, and elements are setup!
     createMPCStudioBlackContent(mpc_studio_black.display, mpc_studio_black.daw)
     mpc_studio_black.display->initialize(mpc_studio_black.daw)
-    mpc_studio_black.device->startInput()
 
 }
 
