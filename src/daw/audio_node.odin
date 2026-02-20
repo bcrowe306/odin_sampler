@@ -19,6 +19,7 @@ AudioNode :: struct {
     name: string,
     render_quantum: u64,
     cache: []f32,
+    zero_buffer: []f32,
     inputs: [dynamic]rawptr,
     outputs: [dynamic]rawptr,
     prepare: proc(node_ptr: rawptr, ctx: EngineContext),
@@ -33,6 +34,7 @@ AudioNode :: struct {
     inputRemovalQueue: [dynamic]rawptr,
     outputRemovalQueue: [dynamic]rawptr,
     processNodeQueues: proc(node_ptr: rawptr),
+    outputZeroBuffer: proc(node_ptr: rawptr, ctx: EngineContext, buffer: []f32, frames: u32),
 }
 
 createAudioNode :: proc() -> ^AudioNode {
@@ -51,6 +53,7 @@ configureNode :: proc(node: ^AudioNode) {
     node.removeInput = nodeRemoveInput
     node.removeOutput = nodeRemoveOutput
     node.processNodeQueues = processNodeQueues
+    node.outputZeroBuffer = outputZeroBuffer
 }
 
 nodeAddInput :: proc(node_ptr: rawptr, input_node_ptr: rawptr) {
@@ -139,4 +142,12 @@ prepareNode :: proc(node_ptr: rawptr, ctx: EngineContext) {
     if u32(len(node.cache)) != ctx.frames_per_buffer * ctx.channels {
         node.cache = make([]f32, ctx.frames_per_buffer * ctx.channels)
     }
+    if u32(len(node.zero_buffer)) != ctx.frames_per_buffer * ctx.channels {
+        node.zero_buffer = make([]f32, ctx.frames_per_buffer * ctx.channels)
+    }
+}
+
+outputZeroBuffer :: proc(node_ptr: rawptr, ctx: EngineContext, buffer: []f32, frames: u32) {
+    node := cast(^AudioNode)node_ptr
+    copy(buffer[:], node.zero_buffer[:])
 }
