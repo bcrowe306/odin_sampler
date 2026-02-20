@@ -3,6 +3,7 @@ package daw
 import "core:encoding/uuid"
 import "core:crypto"
 import "../daw"
+import "../app"
 
 Component :: struct {
     using control : Control,
@@ -11,6 +12,10 @@ Component :: struct {
     removeControl: proc(component: ^Component, control: rawptr),
     controls : [dynamic]rawptr,
     activate: proc(ptr: rawptr),
+    connections: [dynamic]^app.SignalConnection,
+
+    // Function to add signal connections that will be automatically disconnected when the page is left
+    addConnection: proc(page: ^Component, signal: ^app.Signal, observer: proc (value: any, user_data: rawptr)) -> ^app.SignalConnection,
     
 }
 
@@ -29,9 +34,15 @@ createComponent :: proc(name: string) -> ^Component {
     component.removeControl = component_removeControl
     component.activate = activateComponent
     component.deactivate = deactivateComponent
+    component.addConnection = componentAddConnection
     return component
 }
 
+componentAddConnection :: proc(page: ^Component, signal: ^app.Signal, observer: proc (value: any, user_data: rawptr)) -> ^app.SignalConnection {
+    connection := app.signalConnect(signal, observer, cast(rawptr)page)
+    append(&page.connections, connection)
+    return connection
+}
 
 activateComponent :: proc(ptr: rawptr) {
     component := cast(^Component)ptr
@@ -47,6 +58,11 @@ activateComponent :: proc(ptr: rawptr) {
 
 deactivateComponent :: proc(ptr: rawptr) {
     component := cast(^Component)ptr
+    for connection in component.connections {
+        app.signalDisconnect(connection)
+    }
+    clear(&component.connections)
+    
     for control_ptr in component.controls {
         control := cast(^Control)control_ptr
         control.active = false

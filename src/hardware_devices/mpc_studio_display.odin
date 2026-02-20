@@ -30,7 +30,7 @@ MPCStudioDisplay :: struct {
 createMPCStudioDisplay :: proc() -> ^MPCStudioDisplay {
     display := new(MPCStudioDisplay)
     graphics.configureDisplay(display, cairo.format_t.ARGB32, MPC_SCREEN_WIDTH, MPC_SCREEN_HEIGHT, cairo.BLACK)
-    display.max_frames_per_second = 60 // Default to 60 FPS, can be overridden by user
+    display.max_frames_per_second = 90 // Default to 60 FPS, can be overridden by user
     display.window_title = "MPC Studio Black"
     display.onInitialize = onInitializeMPCDisplay
     display.onDeInitialize = onDeInitializeMPCDisplay

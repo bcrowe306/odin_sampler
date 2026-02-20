@@ -5,7 +5,36 @@ import "core:fmt"
 import "core:math"
 import clay  "../../lib/clay-odin"
 
+
+Color :: [4]f64
+WHITE : Color = {1.0, 1.0, 1.0, 1.0}
+BLACK : Color = {0.0, 0.0, 0.0, 1.0}
+RED : Color = {1.0, 0.0, 0.0, 1.0}
+GREEN : Color = {0.0, 1.0, 0.0, 1.0}
+BLUE : Color = {0.0, 0.0, 1.0, 1.0}
 FONT_FAMILY: cstring = "serif"
+
+
+
+// display render function signature
+displayRenderFunc :: proc(surface: ^surface_t, xPos, yPos, width, height: i32, data: rawptr)
+
+SetupAntialiasing :: proc(cr: ^context_t) {
+    set_antialias(cr, antialias_t.NONE)
+    font_options := font_options_create()
+    font_options_set_antialias(font_options, antialias_t.NONE)
+    set_font_options(cr, font_options)
+    font_options_destroy(font_options)
+}
+
+
+SetupSurface :: proc(format: format_t, width, height: i32) -> (^surface_t, ^context_t) {
+    surface := image_surface_create(format, width, height)
+    cr := create(surface)
+    SetupAntialiasing(cr)
+    return surface, cr
+}
+
 
 set_color :: proc(cr: ^context_t, color: Color) {
     set_source_rgba(cr, color.r, color.g, color.b, color.a)

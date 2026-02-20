@@ -1,5 +1,6 @@
 package daw
 
+import "core:math"
 import "core:fmt"
 import "../app"
 MAX_TRACKS :: 64
@@ -16,15 +17,16 @@ Tracks :: struct {
     removeTrack: proc(tracks_ptr: ^Tracks, index: int),
     nextTrack: proc(tracks_ptr: ^Tracks),
     previousTrack: proc(tracks_ptr: ^Tracks),
+    selectedTrackByEncoder: proc(tracks_ptr: ^Tracks, encoder_value: f64),
     
     // Signals
-    onTrackSelected: ^app.Signal(int)
+    onTrackSelected: ^app.Signal
 }
 
 createTracks :: proc() -> Tracks {
     tracks := Tracks{}
     reserve(&tracks.tracks, MAX_TRACKS)
-    tracks.onTrackSelected = app.createSignal(int)
+    tracks.onTrackSelected = app.createSignal()
     tracks.selectTrackByIndex = selectTrackByIndex
     tracks.selectTrack = selectTrack
     tracks.addTrack = addTrack
@@ -32,6 +34,7 @@ createTracks :: proc() -> Tracks {
     tracks.nextTrack = nextTrack
     tracks.previousTrack = previousTrack
     tracks.selectTrackByName = selectTrackByName
+    tracks.selectedTrackByEncoder = selectedTrackByEncoder
     for i in 0..<MAX_TRACKS {
         t := createTrack(fmt.tprintf("Track %d", i + 1))
         tracks->addTrack(t)
@@ -103,4 +106,14 @@ selectTrackByName :: proc(tracks: ^Tracks, name: string) {
             return
         }
     }
+}
+
+selectedTrackByEncoder :: proc(tracks: ^Tracks, encoder_value: f64) {
+    if len(tracks.tracks) == 0 {
+        return
+    }
+    index_change := int(math.round_f64(encoder_value))
+    current_index := tracks.selected_track_index
+    new_index := math.clamp( current_index + index_change, 0, len(tracks.tracks) - 1)
+    tracks.selectTrackByIndex(tracks, new_index)
 }

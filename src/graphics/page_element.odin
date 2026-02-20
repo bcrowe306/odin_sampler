@@ -4,13 +4,17 @@ import "../app"
 import "../cairo"
 import clay "../../lib/clay-odin"
 import "../daw"
-
+// TODO: add signal connections array to track connections and load them on page load, and disconnect on page leave
 
 PageElement :: struct {
     using element: Element,
     name: string,
     render_cmd_array: clay.ClayArray(clay.RenderCommand),
     daw: ^daw.DAW,
+    connections: [dynamic]^app.SignalConnection,
+
+    // Function to add signal connections that will be automatically disconnected when the page is left
+    addConnection: proc(page: ^PageElement, signal: ^app.Signal, observer: proc (value: any, user_data: rawptr)) -> ^app.SignalConnection,
 
     // Override this function to create a page layout using elements and clay layout commands
     createLayout: proc(page: rawptr) -> clay.ClayArray(clay.RenderCommand),
@@ -21,11 +25,17 @@ PageElement :: struct {
     clearPage: proc(page: rawptr, cr: ^cairo.context_t),
 
     invalidatePage: proc(page_ptr: rawptr),
+
     // Lifecycle hooks
     beforeLoad: proc(page: rawptr),
+    onBeforeLoad: proc(page: rawptr),
     afterLoad: proc(page: rawptr, data: any),
-    beforeLeave: proc(page: rawptr),
+    onAfterLoad: proc(page: rawptr, data: any),
+    beforeLeave: proc(page: rawptr), // Has default implementation that disconnects all signal connections added with addConnection
+    onBeforeLeave: proc(page: rawptr),
     afterLeave: proc(page: rawptr),
+    onAfterLeave: proc(page: rawptr),
+    
 }
 
 createPageElement :: proc(name: string, layout: proc(page: rawptr) -> clay.ClayArray(clay.RenderCommand) = nil) -> rawptr {
@@ -38,6 +48,8 @@ createPageElement :: proc(name: string, layout: proc(page: rawptr) -> clay.ClayA
     // Lifecycle hooks
     page.clearPage = clearPage
     page.invalidatePage = invalidatePage
+    page.beforeLeave = beforeLeavePage
+    page.addConnection = addConnection
     return page
 }
 
@@ -51,7 +63,28 @@ configurePage :: proc(page: ^PageElement, name: string, layout: proc(page: rawpt
     // Lifecycle hooks
     page.clearPage = clearPage
     page.invalidatePage = invalidatePage
+    page.beforeLeave = beforeLeavePage
+    page.addConnection = addConnection
+
 }
+
+
+beforeLeavePage :: proc(page: rawptr) {
+    page := cast(^PageElement)page
+    for connection in page.connections {
+        app.signalDisconnect(connection)
+    }
+    page.connections = nil
+}
+
+addConnection :: proc(page: ^PageElement, signal: ^app.Signal, observer: proc (value: any, user_data: rawptr)) -> ^app.SignalConnection {
+    connection := app.signalConnect(signal, observer, cast(rawptr)page)
+    append(&page.connections, connection)
+    return connection
+}
+
+
+
 
 clearPage :: proc(page: rawptr, cr: ^cairo.context_t) {
     page := cast(^PageElement)page

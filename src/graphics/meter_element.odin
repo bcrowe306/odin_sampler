@@ -145,6 +145,15 @@ onUpdateMeter :: proc(element_ptr: rawptr, events: []sdl.Event) {
             fader_range :f32 = element.max_fader - element.min_fader
             value_change := -mouse_drag.y / f32(element.bounds.height) * fader_range
             element->setFaderValue(element.value + value_change)
-        
+    }
+}
+
+processDrag :: proc(element_ptr: rawptr) {
+    element := cast(^MeterElement)element_ptr
+     if element.input_state->isMouseButtonDown(0) {
+        mouse_drag := element.input_state->getDrag(0)
+            fader_range :f32 = element.max_fader - element.min_fader
+            value_change := -mouse_drag.y / f32(element.bounds.height) * fader_range
+            element->setFaderValue(element.value + value_change)
     }
 }

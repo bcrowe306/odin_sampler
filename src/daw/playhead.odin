@@ -1,14 +1,11 @@
 package daw
 
-import "core:time"
-import ma "vendor:miniaudio"
 import "base:runtime"
 import "core:fmt"
 import "../app"
 
 
 PPQN : f64 = 480
-
 
 TickType :: enum {
     Tick,
@@ -27,7 +24,6 @@ PlayheadStateEvent :: struct {
     old_state: PlayheadState,
     new_state: PlayheadState,
 }
-
 
 PlayheadState :: enum {
     Stopped,
@@ -63,8 +59,11 @@ createSongPosition :: proc() -> SongPosition {
     pos.toTimeString = songPositionToTimeString
     return pos
 }
+
+
+
 songPositionToShortString :: proc(pos: SongPosition) -> string {
-    return fmt.tprintf("%d:%d:%d:%d", pos.bar, pos.beat, pos.sixteenth, pos.tick)
+    return fmt.tprintf("%d:%d:%d", pos.bar + 1, pos.beat + 1, pos.sixteenth + 1)
 }
 
 songPositionToTimeString :: proc(pos: SongPosition) -> string {
@@ -112,8 +111,9 @@ Playhead :: struct {
     song_position: SongPosition,
     ticks_per_beat: f64,
     ticks_per_bar: f64,
-    tick_signal: ^app.Signal(TickEvent),
-    state_signal: ^app.Signal(PlayheadStateEvent),
+    onTick: ^app.Signal,
+    onMetronomeTick: ^app.Signal,
+    onStateChange: ^app.Signal,
     looping: bool,
     loop_start_tick: u32,
     loop_end_tick: u32,
@@ -126,6 +126,7 @@ Playhead :: struct {
     setLoopStart: proc(playhead: ^Playhead, tick: u32),
     setLoopEnd: proc(playhead: ^Playhead, tick: u32),
     setLoopPoints: proc(playhead: ^Playhead, start_tick: u32, end_tick: u32),
+    getSongPosition: proc(playhead: ^Playhead) -> SongPosition,
 }
 
 createPlayhead :: proc(sample_rate: f64, tempo: f64 = 100) -> ^Playhead {
@@ -133,16 +134,19 @@ createPlayhead :: proc(sample_rate: f64, tempo: f64 = 100) -> ^Playhead {
     playhead.playhead_state = .Stopped
     playhead.ppqn = PPQN
     playhead.sample_rate = sample_rate
+    playhead.song_position = createSongPosition()
     
     playhead.precount_bars = 1
     playhead.precount_enabled = true
     playhead.return_to_start_on_stop = true
+    playhead.onTick = app.createSignal()
+    playhead.onMetronomeTick = app.createSignal()
+    playhead.onStateChange = app.createSignal()
     
     setTempo(playhead, tempo)
-    playhead.tick_signal = app.createSignal(TickEvent)
-    playhead.state_signal = app.createSignal(PlayheadStateEvent)
+    
     playhead.process = playheadProcess
-    playhead.song_position = createSongPosition()
+    
 
     // Methods
     playhead.setPlayheadState = setPlayheadState
@@ -151,7 +155,13 @@ createPlayhead :: proc(sample_rate: f64, tempo: f64 = 100) -> ^Playhead {
     playhead.setLoopStart = setPlayheadLoopStart
     playhead.setLoopEnd = setPlayheadLoopEnd
     playhead.setLoopPoints = setPlayheadLoopPoints
+    playhead.getSongPosition = getSongPosition
     return playhead
+}
+
+getSongPosition :: proc(playhead: ^Playhead) -> SongPosition {
+    calculateSongPosition(playhead)
+    return playhead.song_position
 }
 
 setPlayheadLooping :: proc(playhead: ^Playhead, looping: bool) {
@@ -176,7 +186,6 @@ calculateSongPosition :: proc(playhead: ^Playhead) {
     playhead.song_position.bar = u32(playhead.song_position.tick / u32(playhead.ticks_per_bar))
     playhead.song_position.beat = u32((playhead.song_position.tick % u32(playhead.ticks_per_bar)) / u32(playhead.ticks_per_beat))
     playhead.song_position.sixteenth = u32((playhead.song_position.tick % u32(playhead.ticks_per_beat)) / u32(playhead.ticks_per_beat / 4))
-    playhead.song_position.tick = u32(playhead.song_position.tick % u32(playhead.ticks_per_beat / 4))
     playhead.song_position.frame = playhead.song_position.frame
     playhead.song_position.tempo = playhead.tempo
     playhead.song_position.time_signature = playhead.song_position.time_signature
@@ -189,9 +198,7 @@ emitTickEvent :: proc(playhead: ^Playhead, tick_type: TickType) {
         playhead_state = playhead.playhead_state,
         song_position = playhead.song_position,
     }
-    if playhead.tick_signal != nil {
-        app.signalEmit(playhead.tick_signal, event)
-    }
+    playhead.onTick->emit(event)
 }
 
 ticksPerBeat :: proc(playhead: ^Playhead) -> f64 {
@@ -199,15 +206,19 @@ ticksPerBeat :: proc(playhead: ^Playhead) -> f64 {
 }
 
 isBeat :: proc(playhead: ^Playhead, tick: u32) -> bool {
-    return tick % u32(ticksPerBeat(playhead)) == 0
+    return isPlayheadProgressing(playhead) && tick % u32(ticksPerBeat(playhead)) == 0
 }
 
 ticksPerBar :: proc(playhead: ^Playhead) -> f64 {
     return ticksPerBeat(playhead) * f64(playhead.song_position.time_signature.numerator)
 }
 
+isPlayheadProgressing :: proc(playhead: ^Playhead) -> bool {
+    return playhead.playhead_state == .Playing || playhead.playhead_state == .Recording || playhead.playhead_state == .Precount
+}
+
 isBar :: proc(playhead: ^Playhead, tick: u32) -> bool {
-    return tick % u32(ticksPerBar(playhead)) == 0
+    return isPlayheadProgressing(playhead) && tick % u32(ticksPerBar(playhead)) == 0
 }
 
 calculateSamplesPerTick :: proc(playhead: ^Playhead) {
@@ -226,8 +237,18 @@ processTick :: proc(playhead: ^Playhead) -> bool {
     if t {
         if isBar(playhead, playhead.song_position.tick) {
             emitTickEvent(playhead, TickType.Bar)
+            playhead.onMetronomeTick->emit(TickEvent{    
+                tick_type = TickType.Bar,
+                playhead_state = playhead.playhead_state,
+                song_position = playhead.song_position,
+            })
         } else if isBeat(playhead, playhead.song_position.tick) {
             emitTickEvent(playhead, TickType.Beat)
+            playhead.onMetronomeTick->emit(TickEvent{    
+                tick_type = TickType.Beat,
+                playhead_state = playhead.playhead_state,
+                song_position = playhead.song_position,
+            })
         } else {
             emitTickEvent(playhead, TickType.Tick)
         }
@@ -310,7 +331,7 @@ setPlayheadState :: proc(playhead: ^Playhead, new_state: PlayheadState) {
                 playhead.song_position.frame = 0
             }
             playhead.playhead_state = new_state
-            app.signalEmit(playhead.state_signal, PlayheadStateEvent{
+            playhead.onStateChange->emit(PlayheadStateEvent{
                 old_state = old_state,
                 new_state = new_state,
             })
@@ -319,7 +340,7 @@ setPlayheadState :: proc(playhead: ^Playhead, new_state: PlayheadState) {
                 playhead.song_position.tick = 0
                 playhead.song_position.frame = 0
                 playhead.playhead_state = new_state
-                app.signalEmit(playhead.state_signal, PlayheadStateEvent{
+                playhead.onStateChange->emit(PlayheadStateEvent{
                     old_state = old_state,
                     new_state = new_state,
                 })
@@ -331,16 +352,16 @@ setPlayheadState :: proc(playhead: ^Playhead, new_state: PlayheadState) {
                     playhead.song_position.frame = 0
                 }
                 playhead.playhead_state = new_state
-                app.signalEmit(playhead.state_signal, PlayheadStateEvent{
-                old_state = old_state,
-                new_state = new_state,
-            })
+                playhead.onStateChange->emit(PlayheadStateEvent{
+                    old_state = old_state,
+                    new_state = new_state,
+                })
             }
             else if old_state == .Precount {
                 playhead.song_position.tick = 0
                 playhead.song_position.frame = 0
                 playhead.playhead_state = new_state
-                app.signalEmit(playhead.state_signal, PlayheadStateEvent{
+                playhead.onStateChange->emit(PlayheadStateEvent{
                     old_state = old_state,
                     new_state = new_state,
                 })
@@ -349,7 +370,7 @@ setPlayheadState :: proc(playhead: ^Playhead, new_state: PlayheadState) {
                 playhead.song_position.tick = 0
                 playhead.song_position.frame = 0
                 playhead.playhead_state = new_state
-                app.signalEmit(playhead.state_signal, PlayheadStateEvent{
+                playhead.onStateChange->emit(PlayheadStateEvent{
                     old_state = old_state,
                     new_state = new_state,
                 })
@@ -357,7 +378,7 @@ setPlayheadState :: proc(playhead: ^Playhead, new_state: PlayheadState) {
         case .Paused:
             if old_state == .Playing || old_state == .Recording {
                 playhead.playhead_state = new_state
-                app.signalEmit(playhead.state_signal, PlayheadStateEvent{
+                playhead.onStateChange->emit(PlayheadStateEvent{
                     old_state = old_state,
                     new_state = new_state,
                 })
@@ -367,14 +388,14 @@ setPlayheadState :: proc(playhead: ^Playhead, new_state: PlayheadState) {
                 playhead.song_position.tick = 0
                 playhead.song_position.frame = 0
                 playhead.playhead_state = new_state
-                app.signalEmit(playhead.state_signal, PlayheadStateEvent{
+                playhead.onStateChange->emit(PlayheadStateEvent{
                     old_state = old_state,
                     new_state = new_state,
                 })
             }
             else if old_state == .Playing {
                 playhead.playhead_state = new_state
-                app.signalEmit(playhead.state_signal, PlayheadStateEvent{
+                playhead.onStateChange->emit(PlayheadStateEvent{
                     old_state = old_state,
                     new_state = new_state,
                 })
@@ -384,7 +405,7 @@ setPlayheadState :: proc(playhead: ^Playhead, new_state: PlayheadState) {
                     playhead.song_position.tick = 0
                     playhead.song_position.frame = 0
                     playhead.playhead_state = PlayheadState.Precount
-                    app.signalEmit(playhead.state_signal, PlayheadStateEvent{
+                    playhead.onStateChange->emit(PlayheadStateEvent{
                         old_state = old_state,
                         new_state = PlayheadState.Precount,
                     })
@@ -393,7 +414,7 @@ setPlayheadState :: proc(playhead: ^Playhead, new_state: PlayheadState) {
                     playhead.song_position.tick = 0
                     playhead.song_position.frame = 0
                     playhead.playhead_state = new_state
-                    app.signalEmit(playhead.state_signal, PlayheadStateEvent{
+                    playhead.onStateChange->emit(PlayheadStateEvent{
                         old_state = old_state,
                         new_state = new_state,
                     })

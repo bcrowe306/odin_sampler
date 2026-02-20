@@ -1,0 +1,105 @@
+package hardware_devices
+
+
+
+DEVICE_NAME: string = "MPC Studio Black MPC Private"
+MPC_SCREEN_WIDTH: i32 : 360
+MPC_SCREEN_HEIGHT: i32 : 96
+MPC_LINE_STRIDE: i32 : 120
+MPC_BIT_STRIDE: i32 : 3
+MPC_SCREEN_BYTE_MAP := [3]u8{0x30, 0x0C, 0x03}
+MPC_SYSEX_HEADER: [3]u8 = {0x47, 0x7F, 0x3D} // Example header for MPC SysEx messages
+
+MPCSB_CONTROL :: enum u8 {
+    PROG_EDIT_BUTTON = 2,
+    PROG_MIX_BUTTON = 3,
+    SEQ_EDIT_BUTTON = 5,
+    SAMPLE_EDIT_BUTTON = 6,
+    SONG_BUTTON = 8,
+    PAD_BANK_A_BUTTON = 35,
+    PAD_BANK_B_BUTTON = 36,
+    PAD_BANK_C_BUTTON = 37,
+    PAD_BANK_D_BUTTON = 38,
+    FULL_LEVEL_BUTTON = 39,
+    SIXTEEN_LEVEL_BUTTON = 40,
+    STEP_SEQ_BUTTON = 41, 
+    NEXT_SEQ_BUTTON = 42,
+    TRACK_MUTE_BUTTON = 43,
+    PROJECT_BUTTON = 44,
+    SEQ_BUTTON = 45,
+    PROG_BUTTON = 46,
+    SAMPLE_BUTTON = 47,
+    NO_FILTER_BUTTON = 48,
+    BROWSER_BUTTON = 50,
+    WINDOW_BUTTON = 51,
+    MAIN_BUTTON = 52,
+    TAP_TEMPO_BUTTON = 53,
+    UNDO_BUTTON = 67,
+    REC_BUTTON = 73,
+    OVERDUB_BUTTON = 80,
+    STOP_BUTTON = 81,
+    PLAY_BUTTON = 82,
+    PLAY_START_BUTTON = 83,
+    JOG_WHEEL = 100,
+    PAD_ASSIGN_BUTTON = 112,
+    QLINK_TRIGGER_BUTTON = 113,
+
+    QLINK_1 = 16,
+    QLINK_2 = 17,
+    QLINK_3 = 18,
+    QLINK_4 = 19,
+    QLINK_SCROLL = 101,
+
+    F1_BUTTON = 12,
+    F2_BUTTON = 13,
+    F3_BUTTON = 14,
+    F4_BUTTON = 15,
+    F5_BUTTON = 33,
+    F6_BUTTON = 34,
+
+    PAD_1 = 37,
+    PAD_2 = 36,
+    PAD_3 = 42,
+    PAD_4 = 82,
+    PAD_5 = 40,
+    PAD_6 = 38,
+    PAD_7 = 46,
+    PAD_8 = 44,
+    PAD_9 = 48,
+    PAD_10 = 47,
+    PAD_11 = 45,
+    PAD_12 = 43, 
+    PAD_13 = 49,
+    PAD_14 = 55,
+    PAD_15 = 51,
+    PAD_16 = 53,
+}
+
+MPC_STUDIO_BLACK_MODE :: enum(u8) {
+    PRIVATE = 0x61,
+    PUBLIC = 0x02,
+}
+
+MPC_STUDIO_BLACK_COMMANDS :: enum(u8) {
+    SET_MODE = 0x62,
+    UPDATE_DISPLAY = 0x04,
+    // Add more commands as needed
+}
+
+
+MPCSB_PAD_COLORS :: enum(u8) {
+    OFF = 0,
+    BLACK = 0,
+    RED_DIM = 8,
+    RED_HALF = 24,
+    RED_FULL = 56,
+    YELLOW_DIM = 10,
+    YELLOW_HALF = 28,
+    YELLOW_FULL = 63,
+    ORANGE_DIM = 17,
+    ORANGE_HALF = 34,
+    ORANGE_FULL = 59,
+    GREEN_DIM = 1,
+    GREEN_HALF = 3,
+    GREEN_FULL = 7
+}

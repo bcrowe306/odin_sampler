@@ -15,6 +15,12 @@ isMouseClickWithinElement :: proc(event: sdl.Event, element: ^Element, button_in
     return false
 }
 
+isInBoundsScaled :: proc(x: f32, y: f32, bounds: cairo.rectangle_t, scale: f32) -> bool {
+    scaled_x := x / scale
+    scaled_y := y / scale
+    return isInBounds(scaled_x, scaled_y, bounds)
+}
+
 // Post scaled. Use for detecting clicks within elements after scaling has been accounted for and applied.
 isInBounds :: proc(x: f32, y: f32, bounds: cairo.rectangle_t) -> bool {
     if x >= f32(bounds.x) && x <= f32(bounds.x + bounds.width) &&
@@ -49,9 +55,9 @@ InputState :: struct {
     isClicked : proc(events: []sdl.Event, element: ^Element, button_index: u8, scale: f32) -> bool,
 }
 
-createInputState :: proc() -> ^InputState {
+createInputState :: proc(window_scale: f32 = 1.5) -> ^InputState {
     state := new(InputState)
-    state.window_scale = 1.5
+    state.window_scale = window_scale
     state.mouse_position = {0, 0}
     state.mouse_delta = {0, 0}
     state.mouse_buttons = [5]bool{false, false, false, false, false}
@@ -73,7 +79,7 @@ updateInputState :: proc(state: ^InputState, events: []sdl.Event, element_ptr: r
                 mouse_delta_x := f32(event.motion.xrel) / state.window_scale
                 mouse_delta_y := f32(event.motion.yrel) / state.window_scale
                 state.mouse_position = {mouse_x, mouse_y}
-                state.mouse_delta = {mouse_delta_x, mouse_delta_y}
+                state.mouse_delta += {mouse_delta_x, mouse_delta_y}
                 
             case sdl.EventType.MOUSE_BUTTON_DOWN:
                 element := cast(^Element)element_ptr
@@ -84,9 +90,12 @@ updateInputState :: proc(state: ^InputState, events: []sdl.Event, element_ptr: r
                 }
 
             case sdl.EventType.MOUSE_BUTTON_UP:
+                state.mouse_delta = {0, 0}
                 if event.button.button <= 5 {
                     state.mouse_buttons[event.button.button - 1] = false
+                    
                 }
+            
         }
     }
 }

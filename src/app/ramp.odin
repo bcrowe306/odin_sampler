@@ -3,7 +3,6 @@ package app
 import "core:time"
 import "core:math/ease"
 
-
 RampFloat :: struct {
     target: f32,
     start: f32,
@@ -16,7 +15,7 @@ RampFloat :: struct {
     process : proc(ramp: ^RampFloat) -> f32,
     activate: proc(ramp: ^RampFloat, start: f32, target: f32),
     setDuration: proc(ramp: ^RampFloat, ramp_time_milliseconds: u32),
-    onUpdated: ^Signal(f32),
+    onUpdated: ^Signal,
 }
 
 createRamp :: proc(ramp_time_milliseconds: u32 = 10, ease_type: ease.Ease = ease.Ease.Linear) -> RampFloat {
@@ -27,7 +26,7 @@ createRamp :: proc(ramp_time_milliseconds: u32 = 10, ease_type: ease.Ease = ease
         process = rampProcess,
         activate = rampActivate,
         active = rampActive,
-        onUpdated = createSignal(f32),
+        onUpdated = createSignal(),
     }
 }
 
@@ -47,7 +46,7 @@ rampProcess :: proc (ramp: ^RampFloat) -> f32 {
         
         progress := clamp(0.0, 1.0, ease.ease(ramp.ease, f32(ramp.elapsed_duration) / f32(ramp.duration)))
         ramp.current = ramp.start + (ramp.target - ramp.start) * progress
-        signalEmit(ramp.onUpdated, ramp.current)
+        signalEmit(ramp.onUpdated, auto_cast &ramp.current)
         ramp.current_tick = time.tick_now()
     } 
     

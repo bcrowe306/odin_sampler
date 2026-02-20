@@ -2,6 +2,7 @@ package hardware_devices
 
 import "core:fmt"
 import daw_pkg "../daw"
+import "../app"
 
 PADS_MAX_PAGES :: 4
 PADS_PER_PAGE :: 16
@@ -11,12 +12,17 @@ PadsControl :: struct {
     pads_map: map[u8]int,
     pads_index: map[int]u8,
     page_index: int,
+    playable: bool,
     setPadColor: proc(control_ptr: rawptr, pad_index: int, color: u8),
+    onPressed: ^app.Signal,
+    onReleased: ^app.Signal,
+    onAftertouch: ^app.Signal,
 }
 
 createPadsControl :: proc() -> ^PadsControl {
     pads := new(PadsControl)
     daw_pkg.configureControl(pads, "PadsControl")
+    pads.playable = true
     pads.channel = 9
     pads.page_index = 0
     pads.status = 0x90
@@ -56,15 +62,27 @@ createPadsControl :: proc() -> ^PadsControl {
     pads.handleInput = handlePadsInput
     pads.setPadColor = setPadColor
 
+    pads.onPressed = app.createSignal()
+    pads.onReleased = app.createSignal()
+    pads.onAftertouch = app.createSignal()
+
     return pads
 }
 
 handlePadsInput :: proc(control_ptr: rawptr, msg: ^daw_pkg.ShortMessage) -> bool {
-    control := cast(^PadsControl)control_ptr
-    if (msg->getMessageType() == control.status && msg->getChannel() == control.channel) {
-        if index, ok := control.pads_map[msg.data1]; ok {
-            control.daw.tracks->selectTrackByIndex(index + control.page_index * PADS_PER_PAGE)
-            return true
+    pads_control := cast(^PadsControl)control_ptr
+    if (msg->getMessageType() == auto_cast daw_pkg.MIDI_STATUS.NOTE_ON && msg->getChannel() == pads_control.channel) {
+        if index, ok := pads_control.pads_map[msg.data1]; ok {
+            pad_index := index + pads_control.page_index * PADS_PER_PAGE
+            pads_control.onPressed->emit(pad_index)
+            return pads_control.playable
+        }
+    }
+    if (msg->getMessageType() == auto_cast daw_pkg.MIDI_STATUS.NOTE_OFF && msg->getChannel() == pads_control.channel) {
+        if index, ok := pads_control.pads_map[msg.data1]; ok {
+            pad_index := index + pads_control.page_index * PADS_PER_PAGE
+            pads_control.onReleased->emit(pad_index)
+            return pads_control.playable
         }
     }
     return false
@@ -76,6 +94,5 @@ setPadColor :: proc(control_ptr: rawptr, pad_index: int, color: u8) {
 
     midi_note := control.pads_index[pad_index]
     msg := daw_pkg.MessageFromIntsChannel(daw_pkg.CONTROL_CHANGE, 9, midi_note, color)
-    fmt.printfln("msg: %s", msg.toHexString(msg))
     control->sendMidi(msg^)
 }

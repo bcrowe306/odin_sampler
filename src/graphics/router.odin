@@ -1,6 +1,5 @@
 package graphics
 
-
 import "core:fmt"
 import "core:container/queue"
 
@@ -81,8 +80,14 @@ beforeNav :: proc (router: ^Router, current_page: ^PageElement, next_page: ^Page
     if current_page != nil && current_page.beforeLeave != nil {
         current_page.beforeLeave(current_page)
     }
-    if next_page.beforeLoad != nil {
+    if current_page != nil && current_page.onBeforeLeave != nil {
+        current_page.onBeforeLeave(current_page)
+    }
+    if next_page != nil && next_page.beforeLoad != nil {
         next_page.beforeLoad(next_page)
+    }
+    if next_page != nil && next_page.onBeforeLoad != nil {
+        next_page.onBeforeLoad(next_page)
     }
     
 }
@@ -91,8 +96,14 @@ afterNav :: proc (router: ^Router, current_page: ^PageElement, next_page: ^PageE
     if current_page != nil && current_page.afterLeave != nil {
         current_page.afterLeave(current_page)
     }
-    if next_page.afterLoad != nil {
+    if current_page != nil && current_page.onAfterLeave != nil {
+        current_page.onAfterLeave(current_page)
+    }
+    if next_page != nil && next_page.afterLoad != nil {
         next_page.afterLoad(next_page, data)
+    }
+    if next_page != nil && next_page.onAfterLoad != nil {
+        next_page.onAfterLoad(next_page, data)
     }
 }
 

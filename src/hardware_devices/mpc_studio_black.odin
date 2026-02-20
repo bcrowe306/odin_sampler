@@ -7,28 +7,6 @@ import daw_pkg "../daw"
 import "../graphics"
 
 
-DEVICE_NAME: string = "MPC Studio Black MPC Private"
-
-MPC_SCREEN_WIDTH: i32 : 360
-MPC_SCREEN_HEIGHT: i32 : 96
-MPC_LINE_STRIDE: i32 : 120
-MPC_BIT_STRIDE: i32 : 3
-MPC_SCREEN_BYTE_MAP := [3]u8{0x30, 0x0C, 0x03}
-MPC_SYSEX_HEADER: [3]u8 = {0x47, 0x7F, 0x3D} // Example header for MPC SysEx messages
-
-MPC_STUDIO_BLACK_MODE :: enum(u8) {
-    PRIVATE = 0x61,
-    PUBLIC = 0x02,
-}
-
-MPC_STUDIO_BLACK_COMMANDS :: enum(u8) {
-    SET_MODE = 0x62,
-    UPDATE_DISPLAY = 0x04,
-    // Add more commands as needed
-}
-
-
-
 MPC_Studio_Black :: struct {
     using control_surface: daw_pkg.ControlSurface,
     line_bytes: [MPC_LINE_STRIDE]u8,
@@ -102,6 +80,7 @@ sendLine :: proc(mpc: ^MPC_Studio_Black, x_pos, y_pos: i32, lineData: []u8) {
 renderElement :: proc(element_ptr: rawptr, surface: ^cairo.surface_t, render_user_data: rawptr) {
     element := cast(^graphics.Element)element_ptr
     if !element.changed {
+        // fmt.printf("Element: %s has not changed, skipping render\n", element.type)
         return
     }
     mpc := cast(^MPC_Studio_Black)render_user_data
@@ -144,18 +123,27 @@ renderElement :: proc(element_ptr: rawptr, surface: ^cairo.surface_t, render_use
         if final_x_val % MPC_BIT_STRIDE > 0 {
             line_byte_counter += 1
         }
+
+        // Send the line data to the MPC via sysex
         mpc->sendLine(xPos, y + yPos, mpc.line_bytes[:line_byte_counter])
-        // for i in 0..<line_byte_counter {
-        //     fmt.printf("%02X ", mpc.line_bytes[i])
-        // }
-        // fmt.print("\n")
+
+        // Debug: Print line byte data before sending
+        // debugLineData(mpc.line_bytes[:line_byte_counter], line_byte_counter)
+
+        // Clear line bytes for next line
         mem.set(&mpc.line_bytes, 0, int(MPC_LINE_STRIDE)) // Clear line bytes for next line
         
     }
     element.changed = false
 }
 
-
+debugLineData :: proc(lineData: []u8, length: int) {
+    line_byte_string := ""
+    for i in 0..<length {
+        line_byte_string = fmt.tprint(line_byte_string, "%02X ", lineData[i])
+    }
+    fmt.printfln("Line Data: %s", line_byte_string)
+}
 
 isPixelOn :: proc(mpc: ^MPC_Studio_Black, a,r,g,b, threshold: u8,) -> bool {
     return r > threshold || g > threshold || b > threshold

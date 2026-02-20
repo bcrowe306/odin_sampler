@@ -5,6 +5,7 @@ Transport :: struct {
     setTempo: proc(transport: ^Transport, tempo: f64),
     getTempo: proc(transport: ^Transport) -> f64,
     setSongPosition: proc(transport: ^Transport, position: SongPosition),
+    getSongPosition: proc(transport: ^Transport) -> SongPosition,
     play: proc(transport: ^Transport),
     stop: proc(transport: ^Transport),
     togglePlay: proc(transport: ^Transport),
@@ -24,6 +25,7 @@ createTransport :: proc(daw: ^DAW) -> Transport {
         setTempo = transportSetTempo,
         getTempo = transportGetTempo,
         setSongPosition = transportSetSongPosition,
+        getSongPosition = transportGetSongPosition,
         play = transportPlay,
         stop = transportStop,
         togglePlay = transportTogglePlay,
@@ -106,5 +108,10 @@ transportIsMetronomeEnabled :: proc(transport: ^Transport) -> bool {
 
 transportToggleMetronome :: proc(transport: ^Transport) {
     transport.daw_ptr.metronome.enabled = !transport.daw_ptr.metronome.enabled
+}
+
+transportGetSongPosition :: proc(transport: ^Transport) -> SongPosition {
+    playhead := transport.daw_ptr.audio_engine.playhead
+    return playhead->getSongPosition()
 }
 

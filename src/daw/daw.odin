@@ -22,7 +22,6 @@ createDAW :: proc() -> ^DAW {
     daw.tracks = createTracks()
     daw.midi_engine = createMidiEngine()
     daw.audio_engine = createAudioEngine()
-    daw.metronome = createMetronomeNode()
     daw.transport = createTransport(daw)
     daw.handleMidiInput = handleMidiInputDaw
     daw.initialize = initializeDaw
@@ -51,21 +50,20 @@ addControlSurface :: proc(daw_ptr: ^DAW, control_surface_ptr: rawptr, device_nam
 }
 
 initializeDaw :: proc(daw_ptr: ^DAW) {
-    daw := daw_ptr
-    daw.midi_engine->initialize()
-    daw.audio_engine->initialize()
-    daw.audio_engine->start()
+    daw_ptr.midi_engine->initialize()
+    daw_ptr.audio_engine->initialize()
+    startAudioEngine(daw_ptr.audio_engine)
+    audioEngineBuild(daw_ptr.audio_engine)
 }
 
 unInitialzeDaw :: proc(daw_ptr: ^DAW) {
-    daw := daw_ptr
-    for control_surface_ptr in daw.midi_engine.control_surfaces {
+    for control_surface_ptr in daw_ptr.midi_engine.control_surfaces {
         control_surface := cast(^ControlSurface)control_surface_ptr
         control_surface->deInitialize()
     }
-    daw.audio_engine->stop()
-    daw.audio_engine->uninitialize()
-    daw.midi_engine->uninitialize() 
-    free(daw.audio_engine)
-    free(daw.midi_engine)
+    stopAudioEngine(daw_ptr.audio_engine)
+    daw_ptr.audio_engine->uninitialize()
+    daw_ptr.midi_engine->uninitialize() 
+    free(daw_ptr.audio_engine)
+    free(daw_ptr.midi_engine)
 }

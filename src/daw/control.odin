@@ -3,6 +3,7 @@ package daw
 import "core:encoding/uuid"
 import "core:crypto"
 import daw_pkg "../daw"
+import "../app"
 
 Control :: struct {
     id: uuid.Identifier,
@@ -22,10 +23,6 @@ Control :: struct {
 
     deactivate: proc(ptr: rawptr),
 
-    listeners: [dynamic]proc(event: ControlEvent),
-    subscribe: proc(ptr: rawptr, listener: proc(event: ControlEvent)),
-    unsubscribe: proc(ptr: rawptr, listener: proc(event: ControlEvent)),
-    emit: proc(ptr: rawptr, event: ControlEvent),
     sendMidi: proc(ptr: rawptr, msg: ShortMessage),
     sendSysex: proc(ptr: rawptr, msg: []u8),
 
@@ -65,29 +62,6 @@ deactivateControl :: proc(ptr: rawptr) {
     }
 }
 
-controlSubscribe :: proc(ptr: rawptr, listener: proc(event: ControlEvent)) {
-    control := cast(^Control)ptr
-    append(&control.listeners, listener)
-}
-
-controlUnsubscribe :: proc(ptr: rawptr, listener: proc(event: ControlEvent)) {
-    control := cast(^Control)ptr
-    for existing_listener, i in control.listeners {
-        if existing_listener == listener {
-            ordered_remove(&control.listeners, i)
-            break
-        }
-    }
-}
-
-emitControlEvent :: proc(ptr: rawptr, event: ControlEvent) {
-    control := cast(^Control)ptr
-    for listener in control.listeners {
-        if listener != nil {
-            listener(event)
-        }
-    }
-}
 
 defaultInputHandler :: proc(ptr: rawptr, msg: ^ShortMessage) -> bool {
     // By default, we emit an event for any message that matches the control's assigned MIDI message
@@ -106,9 +80,6 @@ configureControl :: proc(new_control: rawptr, name: string) {
     control.enabled = true
     control.active = false
     control.handleInput = defaultInputHandler
-    control.subscribe = controlSubscribe
-    control.unsubscribe = controlUnsubscribe
-    control.emit = emitControlEvent
     control.initialize = initializeControl
     control.deInitialize = deInitializeControl
     control.deactivate = deactivateControl

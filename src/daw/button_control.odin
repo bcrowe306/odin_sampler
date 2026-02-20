@@ -1,13 +1,16 @@
 package daw 
 
 import "core:fmt"
+import "../app"
 
 ButtonControl :: struct {
     using control : Control,
     pressed: bool,
-    onPress: proc(control: ^ButtonControl),
-    onRelease: proc(control: ^ButtonControl),
-    onClick: proc(control: ^ButtonControl),
+    onPress: ^app.Signal,
+    onRelease: ^app.Signal,
+    onClick: ^app.Signal,
+    onValue: ^app.Signal,
+
     value: u8,
 }
 
@@ -28,6 +31,7 @@ defaultOnClick :: proc(control: ^ButtonControl) {
     fmt.printf("Button %s Clicked\n", control.name)
 }
 
+
 // Handle button Input
 handleButtonInput :: proc(ptr: rawptr, msg: ^ShortMessage) -> bool {
 
@@ -37,28 +41,25 @@ handleButtonInput :: proc(ptr: rawptr, msg: ^ShortMessage) -> bool {
 
         if msg.data2 != control.value {
             control.value = msg.data2
-            control->emit(createEvent(EventType.ValueChange, control.name, msg^))
+            control.onValue->emit(msg)
         }
         if msg.data2 > 0 {
             if !control.pressed {
                 control.pressed = true
                 if control.onPress != nil {
-                    control.onPress(control)
+                    control.onPress->emit(msg)
                 }
-                control->emit(createEvent(EventType.Pressed, control.name, msg^))
             }
         } else {
             if control.pressed {
                 control.pressed = false
                 
                 if control.onRelease != nil {
-                    control.onRelease(control)
+                    control.onRelease->emit(msg)
                 }
-                control->emit(createEvent(EventType.Released, control.name, msg^))
                 if control.onClick != nil {
-                    control.onClick(control)
+                    control.onClick->emit(msg)
                 }
-                control->emit(createEvent(EventType.Clicked, control.name, msg^))
             }
         }
         return true
@@ -75,9 +76,10 @@ createButtonControl :: proc(name: string, channel: u8, status: u8, identifier: u
     button.identifier = identifier
     button.pressed = false
     button.value = 0
-    button.onPress = defaultOnPress
-    button.onRelease = defaultOnRelease
-    button.onClick = defaultOnClick
+    button.onPress = app.createSignal()
+    button.onRelease = app.createSignal()
+    button.onClick = app.createSignal()
+    button.onValue = app.createSignal()
     button.handleInput = handleButtonInput
     return button
 }
